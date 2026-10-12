@@ -1,6 +1,6 @@
 # Changelog
 
-## dev-3.0-beta — 2026-10-12
+## dev-3.0-beta 2026-10-12
 
 ### Added
 
