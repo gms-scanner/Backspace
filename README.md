@@ -1,3 +1,5 @@
+# Backspace
+
 <p align="center">
   <img src="assets/backspace-icon.png" width="112" alt="Backspace logo">
 </p>
@@ -5,7 +7,7 @@
 <h1 align="center">Backspace</h1>
 
 <p align="center">
-  A modern Minecraft Forge 1.12.2 client.<br>
+  A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
   <strong>dev-3.0-beta</strong>
 </p>
 
@@ -18,97 +20,94 @@
 
 ---
 
-## Overview
+## About
 
-Backspace is a Forge 1.12.2 client with a rounded, GPU-rendered interface,
-theme-aware glow treatment, a searchable module browser, HUD editing, and
-persistent configuration. The UI is built on OneConfig and NanoVG rather than
-Minecraft's legacy rectangle renderer, so text, icons, rounded cards, and
-scrolling stay sharp across GUI scales.
+Backspace is a Minecraft Forge 1.12.2 client with a custom interface built to make the game easier to navigate and customize.
 
-## Highlights
+It features a searchable module browser, rounded panels, animated glow effects, an editable HUD, and settings that stay saved between launches.
 
-- **Modern client UI** — anti-aliased rounded panels, cards, toggles, search,
-  category navigation, module inspector, animated glow, and a rebuilt
-  Backspace main menu.
-- **Organized module system** — Combat, Movement, Player, Render, World,
-  Exploit, Misc, Client, and HUD categories with configurable module settings
-  and keybinds.
-- **HUD and persistence** — drag-based HUD editor, ArrayList support, theme
-  preferences, and config state saved between launches.
-- **Client tooling** — waypoint and friend commands, inventory helpers,
-  visual modules, diagnostics, and build-time harnesses.
-- **Clean source release** — Java 8 Gradle wrapper, GitHub Actions build,
-  changelog, release notes, bundled UI dependency, and third-party notices.
+The interface is built with OneConfig and NanoVG instead of Minecraft's old rectangle-based renderer. This helps keep text, icons, and other UI elements looking clean at different GUI scales.
 
-## Install
+## Features
 
-1. Install **Minecraft 1.12.2** with **Forge 14.23.5.2859**.
-2. Download both release assets:
-   - `backspace-dev-3.0-beta.jar`
-   - `OneConfig-1.12.2-forge.jar`
-3. Put both jars in the same `.minecraft/mods` folder.
-4. Launch the game with **Java 8**.
-5. Press <kbd>Right Shift</kbd> or run `/backspace` to open Backspace.
+* **Custom GUI**: Rounded panels, smooth scrolling, animated glow effects, toggles, category navigation, and a redesigned main menu.
+* **Module browser**: Find modules quickly or browse categories like Combat, Movement, Player, Render, World, Exploit, Misc, Client, and HUD.
+* **Module settings**: Customize available options and keybinds directly through the interface.
+* **HUD editor**: Move HUD elements around, use the ArrayList, and adjust the client's appearance.
+* **Saved settings**: Your configuration and theme preferences are saved between sessions.
+* **Commands and tools**: Includes waypoint and friend commands, inventory helpers, visual modules, and diagnostic utilities.
+* **Developer tools**: Comes with a Gradle wrapper, GitHub Actions build workflow, changelog, release notes, and third-party notices.
 
-> OneConfig is required at runtime. Backspace declares it as a Forge
-> dependency and does not bundle its classes into the Backspace jar.
+## Installation
 
-## Build from source
+1. Install Minecraft **1.12.2** with Forge **14.23.5.2859**.
+2. Download both files from the release:
 
-### Requirements
+   * `backspace-dev-3.0-beta.jar`
+   * `OneConfig-1.12.2-forge.jar`
+3. Place both JAR files in your `.minecraft/mods` folder.
+4. Launch Minecraft using **Java 8**.
+5. Press <kbd>Right Shift</kbd> or type `/backspace` in-game to open the client.
 
-- JDK 8
-- Internet access for ForgeGradle's first dependency resolution
+**Note:** OneConfig is required for Backspace to run. It is declared as a Forge dependency and is not bundled into the Backspace JAR.
 
-### Commands
+## Building from source
+
+Want to build Backspace yourself or make changes to the code? You'll need:
+
+* JDK 8
+* An internet connection for the initial ForgeGradle dependency download
+
+Open a terminal in the project directory and run the command for your operating system.
+
+**Windows**
 
 ```powershell
-# Windows
 .\gradlew.bat build
 ```
 
+**Linux / macOS**
+
 ```bash
-# Linux / macOS
 ./gradlew build
 ```
 
-The finished artifact is written to:
+After the build finishes, the JAR will be located at:
 
 ```text
 build/libs/backspace-dev-3.0-beta.jar
 ```
 
-The included Gradle wrapper pins Gradle `4.10.3`, so builds do not depend on a
-machine-local Gradle install.
+The project includes a Gradle wrapper pinned to version `4.10.3`, so there's no need to install Gradle separately.
 
 ## Controls
 
-| Action | Control |
-| --- | --- |
-| Open Backspace | <kbd>Right Shift</kbd> or `/backspace` |
-| Search modules | Click search or <kbd>Ctrl</kbd> + <kbd>F</kbd> |
-| Close Backspace | <kbd>Esc</kbd> |
-| Edit HUD | `HUD` from the ClickGUI header |
+| Action              | Control                                                      |
+| ------------------- | ------------------------------------------------------------ |
+| Open Backspace      | <kbd>Right Shift</kbd> or `/backspace`                       |
+| Search modules      | Click the search bar or press <kbd>Ctrl</kbd> + <kbd>F</kbd> |
+| Close the GUI       | <kbd>Esc</kbd>                                               |
+| Open the HUD editor | Select `HUD` in the ClickGUI header                          |
 
-## Project layout
+## Project structure
 
 ```text
-src/main/java/                 Backspace source
-src/main/resources/            fonts, icons, textures, mod metadata
-assets/backspace-icon.png      repository and release artwork
-libs/OneConfig-1.12.2-forge.jar required UI runtime/build dependency
-tools/ncp-lab/                 local diagnostic utilities
-.github/workflows/build.yml    CI build
+src/main/java/                 Main Java source
+src/main/resources/            Fonts, icons, textures, and mod metadata
+assets/backspace-icon.png      Project logo
+libs/OneConfig-1.12.2-forge.jar OneConfig dependency
+tools/ncp-lab/                 Local diagnostic tools
+.github/workflows/build.yml    Automated build workflow
 ```
 
-## Release notes
+## Changelog and releases
 
-See [CHANGELOG.md](CHANGELOG.md) for version changes and
-[RELEASE_NOTES.md](RELEASE_NOTES.md) for the current install bundle.
+See [CHANGELOG.md](CHANGELOG.md) for changes between versions.
+
+For details about the current release and its installation files, check [RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ## License and credits
 
-Backspace is released under the [MIT License](LICENSE). Third-party font and
-runtime notices are retained in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Backspace is released under the [MIT License](LICENSE).
 
+Third-party font credits and runtime dependency notices can be found in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
