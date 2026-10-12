@@ -1,4 +1,4 @@
-# Backspace — dev-3.0-beta
+# Backspace  dev-3.0-beta
 
 Backspace dev-3.0-beta is the first public 3.0 beta release for Minecraft
 Forge 1.12.2.
