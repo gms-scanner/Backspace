@@ -36,3 +36,9 @@ task lavaCastHarness(type: JavaExec) {
     main = 'dev.goldforge.diagnostics.LavaCastHarness'
 }
 
+task crystalAuraHarness(type: JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'dev.goldforge.diagnostics.CrystalAuraHarness'
+}
+

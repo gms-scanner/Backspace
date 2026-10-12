@@ -36,6 +36,7 @@ The interface is built with OneConfig and NanoVG instead of Minecraft's old rect
 * **HUD editor**: Move HUD elements around, use the ArrayList, and adjust the client's appearance.
 * **Saved settings**: Your configuration and theme preferences are saved between sessions.
 * **Commands and tools**: Includes waypoint and friend commands, inventory helpers, visual modules, and diagnostic utilities.
+* **CrystalAura**: Independent place/break timing, motion prediction, vanilla damage estimates, offhand support, rotations, and confirmed placement tracking. See [settings, implementation, and validation](docs/CRYSTALAURA.md).
 * **Developer tools**: Comes with a Gradle wrapper, GitHub Actions build workflow, changelog, release notes, and third-party notices.
 
 ## Installation
@@ -79,6 +80,11 @@ build/libs/backspace-dev-3.0-beta.jar
 ```
 
 The project includes a Gradle wrapper pinned to version `4.10.3`, so there's no need to install Gradle separately.
+
+Run the CrystalAura damage and retry checks with `./gradlew crystalAuraHarness`
+(`.\gradlew.bat crystalAuraHarness` on Windows). The CrystalAura reboot is on
+`main`; the existing `dev-3.0-beta` release predates it. Build `main` or download
+the artifact from a successful [GitHub Actions build](https://github.com/gms-scanner/Backspace/actions).
 
 ## Controls
 

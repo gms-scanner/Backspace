@@ -22,9 +22,9 @@ jobs:
           distribution: temurin
           java-version: '8'
 
-      - name: Build release jar
+      - name: Build release jar and check CrystalAura
         shell: pwsh
-        run: .\gradlew.bat build --no-daemon
+        run: .\gradlew.bat build crystalAuraHarness --no-daemon
 
       - name: Upload release candidate
         uses: actions/upload-artifact@v4
