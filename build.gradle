@@ -1,0 +1,38 @@
+buildscript {
+    repositories { maven { url = 'https://maven.minecraftforge.net/' }; mavenCentral() }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:3.+' }
+}
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'eclipse'
+
+version = 'dev-3.0-beta'
+group = 'dev.goldforge'
+archivesBaseName = 'backspace'
+
+sourceCompatibility = targetCompatibility = '1.8'
+compileJava { sourceCompatibility = targetCompatibility = '1.8' }
+compileJava.options.encoding = 'UTF-8'
+
+minecraft {
+    mappings channel: 'snapshot', version: '20171003-1.12'
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2859'
+    // OneConfig supplies the NanoVG renderer, font atlas, input layer, blur,
+    // and anti-aliased rounded primitives used by the client UI.
+    compile files('libs/OneConfig-1.12.2-forge.jar')
+}
+
+task ncpPassableHarness(type: JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'dev.goldforge.diagnostics.NcpPassableHarness'
+}
+
+task lavaCastHarness(type: JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'dev.goldforge.diagnostics.LavaCastHarness'
+}
+

@@ -1,0 +1,31 @@
+# Gradle, Forge, and generated release files
+.gradle/
+build/
+out/
+run/
+logs/
+outputs/
+work/
+*.log
+
+# Local NCP diagnostics server and captured state
+tools/ncp-lab/logs/
+tools/ncp-lab/server/
+tools/ncp-lab/server.pid
+
+# IDE and operating-system files
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Keep the only required, redistributed build dependency. The unused EriAPI
+# jar stays local and is intentionally absent from source control.
+/libs/*
+!/libs/OneConfig-1.12.2-forge.jar

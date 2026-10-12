@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Matches the supplied Backspace mark: a wide, softened keycap body,
+       a shallow left point, and a heavy rounded deletion X. -->
+  <path fill="#FFD800" d="M18 128 88 58Q94 52 104 52h96c20 0 36 16 36 36v80c0 20-16 36-36 36h-96q-10 0-16-6L18 128Z"/>
+  <path fill="none" stroke="#08090A" stroke-width="18" stroke-linecap="round" d="m119 105 54 54m0-54-54 54"/>
+</svg>

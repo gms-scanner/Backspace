@@ -1,0 +1,34 @@
+name: Build Backspace
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+
+      - name: Build release jar
+        shell: pwsh
+        run: .\gradlew.bat build --no-daemon
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: backspace-dev-3.0-beta
+          path: build/libs/backspace-dev-3.0-beta.jar
+          if-no-files-found: error
