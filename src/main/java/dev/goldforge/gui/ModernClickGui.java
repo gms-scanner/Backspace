@@ -311,7 +311,8 @@ public final class ModernClickGui extends OneUIScreen {
         }
 
         float settingsY = hasSpecialEditor(selectedModule) ? actionY + 87F : actionY + 49F;
-        text(vg, "SETTINGS", x + 18F, settingsY, 11F, MUTED);
+        String settingsTitle=selectedModule instanceof ShaderFX?((ShaderFX)selectedModule).shaderStatus():"SETTINGS";
+        text(vg, trim(vg, settingsTitle, w - 36F, 11F), x + 18F, settingsY, 11F, MUTED);
         List<ModuleSetting> settings = selectedModule.getSettings();
         int visible = Math.max(1, (int) ((y + h - settingsY - 22F) / 37F));
         int max = Math.max(0, settings.size() - visible);

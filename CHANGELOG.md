@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### ShaderFX
+
+- Replaced crystal boxes and vanilla outline flags with model silhouette masks,
+  Gaussian bloom, and animated GLSL composition for hands, players, and crystals.
+- Added rainbow, procedural galaxy, aurora, and theme colors with independent
+  target styles, fill opacity, glow radius, and animation speed.
+- Added single-block obsidian/bedrock hole detection and animated floor/side
+  highlights, including an all-bedrock filter and configurable scan bounds.
+- Added scene-depth masking, framebuffer resize/resource reload handling, and
+  scoped OpenGL state restoration. See [ShaderFX settings](docs/SHADERFX.md).
+
 ### CrystalAura reboot
 
 - Independent place/break scheduling, per-entity retry pacing, ping-aware spawn

@@ -117,6 +117,10 @@ public final class ModuleManager {
         Module module=get("AutoSign");if(module instanceof AutoSign&&module.enabled&&!module.isSuspended())((AutoSign)module).init(event);
     }
     @SubscribeEvent public void livingSpecials(RenderLivingEvent.Specials.Pre event){
+        Module shader=get("ShaderFX");
+        if(shader instanceof ShaderFX&&shader.enabled&&((ShaderFX)shader).isCapturing()){
+            event.setCanceled(true);return;
+        }
         Module module=get("Nametags");if(module instanceof Nametags&&module.enabled&&!module.isSuspended())((Nametags)module).cancelVanilla(event);
     }
     @SubscribeEvent public void livingDeath(final LivingDeathEvent event){

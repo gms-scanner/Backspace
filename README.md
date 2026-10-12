@@ -33,6 +33,7 @@ The interface is built with OneConfig and NanoVG instead of Minecraft's old rect
 * **Custom GUI**: Rounded panels, smooth scrolling, animated glow effects, toggles, category navigation, and a redesigned main menu.
 * **Module browser**: Find modules quickly or browse categories like Combat, Movement, Player, Render, World, Exploit, Misc, Client, and HUD.
 * **Module settings**: Customize available options and keybinds directly through the interface.
+* **ShaderFX**: Animated rainbow, galaxy, aurora, and theme glows around hands, players, crystals, and safe holes. See [styles and settings](docs/SHADERFX.md).
 * **HUD editor**: Move HUD elements around, use the ArrayList, and adjust the client's appearance.
 * **Saved settings**: Your configuration and theme preferences are saved between sessions.
 * **Commands and tools**: Includes waypoint and friend commands, inventory helpers, visual modules, and diagnostic utilities.
