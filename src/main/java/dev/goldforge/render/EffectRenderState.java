@@ -32,9 +32,12 @@ final class EffectRenderState implements AutoCloseable {
     private final boolean[] enabled = new boolean[caps.length];
     private final boolean[] lights = new boolean[8], textures = new boolean[4];
     private final int[] bindings = new int[4];
-    private final FloatBuffer color = BufferUtils.createFloatBuffer(4);
-    private final IntBuffer viewport = BufferUtils.createIntBuffer(4);
-    private final java.nio.ByteBuffer colorMask = BufferUtils.createByteBuffer(4);
+    // LWJGL 2 validates glGet* result buffers against the largest legal vector
+    // size for the entry point. Some 1.12.2 drivers therefore reject 4-element
+    // buffers even for GL_CURRENT_COLOR, GL_VIEWPORT and GL_COLOR_WRITEMASK.
+    private final FloatBuffer color = BufferUtils.createFloatBuffer(16);
+    private final IntBuffer viewport = BufferUtils.createIntBuffer(16);
+    private final java.nio.ByteBuffer colorMask = BufferUtils.createByteBuffer(16);
 
     EffectRenderState() {
         GL11.glGetFloat(GL11.GL_CURRENT_COLOR, color);
