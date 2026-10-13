@@ -306,7 +306,9 @@ public final class ModernClickGui extends OneUIScreen {
         action(vg, input, x + 14F, actionY, w - 28F, "KEYBIND", awaitingKeyBind ? "PRESS A KEY" : keyName(selectedModule.key));
         if (input.isAreaClicked(x + 14F, actionY, w - 28F, 31F)) awaitingKeyBind = true;
         if (hasSpecialEditor(selectedModule)) {
-            action(vg, input, x + 14F, actionY + 38F, w - 28F, "CONFIGURE", "OPEN");
+            String specialLabel=selectedModule instanceof ShaderFX?"OVERLAY IMAGE":"CONFIGURE";
+            String specialValue=selectedModule instanceof ShaderFX?((ShaderFX)selectedModule).textureLabel():"OPEN";
+            action(vg, input, x + 14F, actionY + 38F, w - 28F, specialLabel, specialValue);
             if (input.isAreaClicked(x + 14F, actionY + 38F, w - 28F, 31F)) openSpecialEditor();
         }
 

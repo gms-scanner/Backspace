@@ -21,8 +21,6 @@ import org.lwjgl.opengl.GL11;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -86,19 +84,17 @@ public final class ShaderFX extends Module {
         addIntSetting("Imported crystal overlay",0,1,1,()->bodyTexture,v->bodyTexture=v);
     }
 
-    /** Opens a file picker and stores a portable PNG copy under the Minecraft instance directory. */
+    /** Opens the in-game overlay editor instead of a native Swing dialog. */
     public void chooseTexture(){
-        JFileChooser chooser=new JFileChooser();
-        chooser.setDialogTitle("Import an overlay texture");
-        chooser.setFileFilter(new FileNameExtensionFilter("Images (*.png, *.jpg, *.jpeg)","png","jpg","jpeg"));
-        if(!texturePath.isEmpty()){
-            File current=new File(texturePath);
-            File parent=current.getParentFile();
-            if(parent!=null&&parent.isDirectory())chooser.setCurrentDirectory(parent);
+        if(mc.currentScreen!=null)mc.displayGuiScreen(new dev.goldforge.gui.ShaderOverlayGui(mc.currentScreen,this));
+    }
+
+    /** Validates and copies an image to the instance before exposing it to the GL renderer. */
+    public boolean importTexturePath(String rawPath){
+        if(rawPath==null||rawPath.trim().isEmpty()){
+            texturePath="";releaseTexture();textureStatus="No image imported";dev.goldforge.ConfigManager.save();return true;
         }
-        if(chooser.showOpenDialog(null)!=JFileChooser.APPROVE_OPTION)return;
-        File selected=chooser.getSelectedFile();
-        if(selected==null||!selected.isFile())return;
+        File selected=new File(rawPath.trim());
         try{
             BufferedImage image=readSafeImage(selected);
             Path directory=mc.mcDataDir.toPath().resolve("Backspace").resolve("shaders");
@@ -110,7 +106,11 @@ public final class ShaderFX extends Module {
             texturePath=destination.toAbsolutePath().toString();
             releaseTexture();textureStatus="Texture imported; upload pending";
             dev.goldforge.ConfigManager.save();
-        }catch(Exception failure){textureStatus="Import failed: "+(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage());}
+            return true;
+        }catch(Exception failure){
+            textureStatus="Import failed: "+(failure.getMessage()==null?failure.getClass().getSimpleName():failure.getMessage());
+            return false;
+        }
     }
 
     public String textureLabel(){

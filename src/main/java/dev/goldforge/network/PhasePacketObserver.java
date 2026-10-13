@@ -10,6 +10,7 @@ import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.client.CPacketPlayer;
 import net.minecraft.network.play.server.SPacketPlayerPosLook;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
+import net.minecraft.network.play.server.SPacketExplosion;
 import dev.goldforge.module.impl.Velocity;
 import dev.goldforge.module.impl.PacketFlyLab;
 import dev.goldforge.module.impl.NoFall;
@@ -38,6 +39,7 @@ public final class PhasePacketObserver {
                 @Override public void channelRead(ChannelHandlerContext context,Object message)throws Exception{
                     dev.goldforge.module.impl.LagWatch.recordPacket(true,message,System.nanoTime());
                     int velocityEntityId = -1;
+                    SPacketExplosion explosion = null;
                     if(message instanceof SPacketPlayerPosLook){
                         SPacketPlayerPosLook packet=(SPacketPlayerPosLook)message;
                         final Phase.CorrectionRecord record=Phase.recordServerCorrection(packet.getX(),packet.getY(),packet.getZ(),packet.getYaw(),packet.getPitch(),packet.getFlags());
@@ -58,11 +60,21 @@ public final class PhasePacketObserver {
                         // state is read later on the client thread, after vanilla handles it.
                         velocityEntityId=((SPacketEntityVelocity)message).getEntityID();
                     }
+                    if(message instanceof SPacketExplosion){
+                        explosion=(SPacketExplosion)message;
+                    }
                     super.channelRead(context,message);
                     if(velocityEntityId!=-1){
                         final int entityId=velocityEntityId;
                         final Minecraft client=Minecraft.getMinecraft();
                         Runnable apply=new Runnable(){@Override public void run(){Velocity.apply(Velocity.capture(entityId));}};
+                        if(client.isCallingFromMinecraftThread())apply.run();
+                        else client.addScheduledTask(apply);
+                    }
+                    if(explosion!=null){
+                        final float motionX=explosion.getMotionX(),motionY=explosion.getMotionY(),motionZ=explosion.getMotionZ();
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable apply=new Runnable(){@Override public void run(){Velocity.apply(Velocity.captureExplosion(motionX,motionY,motionZ));}};
                         if(client.isCallingFromMinecraftThread())apply.run();
                         else client.addScheduledTask(apply);
                     }
