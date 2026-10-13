@@ -1,5 +1,18 @@
 # Changelog
 
+## dev-3.5-beta 2026-10-13
+
+### Added
+
+- BreakESP: server-reported block damage progress with miner labels and stale-record cleanup.
+- PopChams: fading six-part player silhouettes captured on totem activation packets.
+- LogoutSpots: last observed player positions, removed on rejoin and cleared on world changes.
+- PearlTrace: opponent pearl trajectory and landing prediction from live motion, block/entity collision, water drag, and gravity.
+
+### Updated
+
+- Client, main menu, ClickGUI, and build metadata now identify beta 3.5.
+
 ## Unreleased
 
 ### ShaderFX

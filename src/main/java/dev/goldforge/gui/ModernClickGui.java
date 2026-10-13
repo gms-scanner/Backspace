@@ -155,7 +155,7 @@ public final class ModernClickGui extends OneUIScreen {
         float spaceX = titleX + nvg.getTextWidth(vg, "back", HEADER_TITLE_SIZE, Fonts.REGULAR);
         text(vg, "back", titleX, titleY, HEADER_TITLE_SIZE, TEXT);
         text(vg, "space", spaceX, titleY, HEADER_TITLE_SIZE, YELLOW);
-        text(vg, "DEV 3.0 BETA", titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
+        text(vg, "DEV 3.5 BETA", titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
     }
 
     private void drawHeader(long vg, InputHandler input, float x, float y, float width) {

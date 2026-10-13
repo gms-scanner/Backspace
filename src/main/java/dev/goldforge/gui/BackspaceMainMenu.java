@@ -95,7 +95,7 @@ public final class BackspaceMainMenu extends GuiScreen {
         }
         GlStateManager.popMatrix();
         if (height >= 300) {
-            label("DEV 3.0 BETA", left + 2, (int)(titleY + 34F), fadeAlpha(MUTED, menuFade), 9F);
+            label("DEV 3.5 BETA", left + 2, (int)(titleY + 34F), fadeAlpha(MUTED, menuFade), 9F);
             label("A CLEANER WAY TO PLAY", left + 2, (int)(titleY + 54F), fadeAlpha(0xFF777A83, menuFade), 9F);
         }
 

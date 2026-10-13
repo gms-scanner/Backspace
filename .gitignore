@@ -1,6 +1,7 @@
 # Gradle, Forge, and generated release files
 .gradle/
 build/
+.tools/
 out/
 run/
 logs/

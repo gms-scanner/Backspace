@@ -12,6 +12,9 @@ import net.minecraft.network.play.server.SPacketPlayerPosLook;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
 import net.minecraft.network.play.server.SPacketExplosion;
 import net.minecraft.network.play.server.SPacketBlockChange;
+import net.minecraft.network.play.server.SPacketBlockBreakAnim;
+import net.minecraft.network.play.server.SPacketEntityStatus;
+import net.minecraft.network.play.server.SPacketPlayerListItem;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import dev.goldforge.module.impl.Velocity;
@@ -20,6 +23,9 @@ import dev.goldforge.module.impl.NoFall;
 import dev.goldforge.module.impl.GroundSpoof;
 import dev.goldforge.module.impl.CraftCarry;
 import dev.goldforge.module.impl.Scaffold;
+import dev.goldforge.module.impl.BreakESP;
+import dev.goldforge.module.impl.PopChams;
+import dev.goldforge.module.impl.LogoutSpots;
 
 /** Read-only observer for server position corrections, used by Phase diagnostics. */
 public final class PhasePacketObserver {
@@ -42,6 +48,42 @@ public final class PhasePacketObserver {
             pipeline.addBefore("packet_handler",HANDLER_NAME,new ChannelDuplexHandler(){
                 @Override public void channelRead(ChannelHandlerContext context,Object message)throws Exception{
                     dev.goldforge.module.impl.LagWatch.recordPacket(true,message,System.nanoTime());
+                    if(message instanceof SPacketBlockBreakAnim){
+                        final SPacketBlockBreakAnim packet=(SPacketBlockBreakAnim)message;
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable capture=()->{
+                            dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("BreakESP");
+                            if(module instanceof BreakESP)((BreakESP)module).onBreakPacket(packet.getBreakerId(),packet.getPosition(),packet.getProgress());
+                        };
+                        if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
+                    }
+                    if(message instanceof SPacketEntityStatus){
+                        final SPacketEntityStatus packet=(SPacketEntityStatus)message;
+                        if(packet.getOpCode()==35){
+                            final Minecraft client=Minecraft.getMinecraft();
+                            Runnable capture=()->{
+                                if(client.world==null)return;
+                                net.minecraft.entity.Entity entity=packet.getEntity(client.world);
+                                dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("PopChams");
+                                if(entity!=null&&module instanceof PopChams)((PopChams)module).onTotemPop(entity.getEntityId());
+                            };
+                            if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
+                        }
+                    }
+                    if(message instanceof SPacketPlayerListItem){
+                        SPacketPlayerListItem packet=(SPacketPlayerListItem)message;
+                        if(packet.getAction()==SPacketPlayerListItem.Action.REMOVE_PLAYER||packet.getAction()==SPacketPlayerListItem.Action.ADD_PLAYER){
+                            final boolean removed=packet.getAction()==SPacketPlayerListItem.Action.REMOVE_PLAYER;
+                            final java.util.List<java.util.UUID> ids=new java.util.ArrayList<java.util.UUID>();
+                            for(SPacketPlayerListItem.AddPlayerData entry:packet.getEntries())ids.add(entry.getProfile().getId());
+                            final Minecraft client=Minecraft.getMinecraft();
+                            Runnable capture=()->{
+                                dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("LogoutSpots");
+                                if(module instanceof LogoutSpots)for(java.util.UUID id:ids)((LogoutSpots)module).onPlayerListChange(id,removed);
+                            };
+                            if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
+                        }
+                    }
                     int velocityEntityId = -1;
                     SPacketExplosion explosion = null;
                     SPacketBlockChange blockChange = message instanceof SPacketBlockChange
