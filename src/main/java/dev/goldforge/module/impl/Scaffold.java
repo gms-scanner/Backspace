@@ -2,6 +2,7 @@ package dev.goldforge.module.impl;
 
 import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
+import dev.goldforge.module.MovementManager;
 import dev.goldforge.network.PacketManager;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockFalling;
@@ -15,27 +16,38 @@ import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraftforge.client.event.InputUpdateEvent;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Builds a supported path under the player's feet and ahead of edges. */
 public final class Scaffold extends Module {
-    public int actionDelay = 1;
-    public int ncpProfile = 1;
+    public int actionDelay = 0;
+    public int ncpProfile = 0;
     public int targetY = -1;
     public int predictionTicks = 2;
-    public int placementTimeout = 5;
+    public int placementTimeout = 20;
     public int retryLimit = 2;
     public int autoRefill = 1;
+    public int descentSpeed = 28;
 
     private int cooldown;
     private int retries;
     private BlockPos retryTarget;
     private BlockPos pending;
     private int pendingTicks;
+    private boolean pendingAccepted;
+    private boolean pendingDenied;
+    private int descentBaseY = Integer.MIN_VALUE;
+    private final Set<BlockPos> unverified = new HashSet<BlockPos>();
 
     public Scaffold() {
         super("Scaffold", "Builds a verified, supported path beneath you.", Category.MOVEMENT, 0);
@@ -43,9 +55,10 @@ public final class Scaffold extends Module {
         addIntSetting("NCP timing (0/1)", 0, 1, 1, () -> ncpProfile, value -> ncpProfile = value);
         addIntSetting("Target Y (-1=follow)", -1, 320, 1, () -> targetY, value -> targetY = value);
         addIntSetting("Look ahead (ticks)", 0, 4, 1, () -> predictionTicks, value -> predictionTicks = value);
-        addIntSetting("Confirm timeout (ticks)", 2, 12, 1, () -> placementTimeout, value -> placementTimeout = value);
+        addIntSetting("Confirm timeout (ticks)", 4, 80, 1, () -> placementTimeout, value -> placementTimeout = value);
         addIntSetting("Retry limit", 0, 5, 1, () -> retryLimit, value -> retryLimit = value);
         addIntSetting("Auto refill (0/1)", 0, 1, 1, () -> autoRefill, value -> autoRefill = value);
+        addIntSetting("Crouch descent speed", 10, 50, 2, () -> descentSpeed, value -> descentSpeed = value);
     }
 
     @Override protected void onEnable() { clear(); }
@@ -54,6 +67,9 @@ public final class Scaffold extends Module {
     private void clear() {
         cooldown = retries = pendingTicks = 0;
         retryTarget = pending = null;
+        pendingAccepted = pendingDenied = false;
+        descentBaseY = Integer.MIN_VALUE;
+        unverified.clear();
     }
 
     @Override public void tick() {
@@ -61,28 +77,40 @@ public final class Scaffold extends Module {
             clear();
             return;
         }
+        unverified.removeIf(pos -> !pos.equals(pending) && mc.world.isBlockLoaded(pos)
+                && isReplaceable(pos));
+        if (mc.player.onGround) descentBaseY = MathHelper.floor(mc.player.getEntityBoundingBox().minY);
+        enforceSafety();
         if (mc.currentScreen != null) return;
         if (cooldown > 0) --cooldown;
         if (pending != null) {
             if (!mc.world.isBlockLoaded(pending)) { clear(); return; }
-            if (++pendingTicks >= 2 && isPlaced(pending)) {
+            ++pendingTicks;
+            if (pendingAccepted && isPlaced(pending)) {
                 pending = null;
                 pendingTicks = 0;
+                pendingAccepted = pendingDenied = false;
                 retryTarget = null;
                 retries = 0;
                 return;
             }
-            if (pendingTicks < Math.max(2, placementTimeout)) return;
-            // SUCCESS only reports the client's interaction result. Await world confirmation.
+            if (!pendingDenied && pendingTicks < Math.max(4, placementTimeout)) return;
+            // The local block can be a ghost. Only a solid server response confirms it.
             retryTarget = pending;
             pending = null;
             pendingTicks = 0;
+            pendingAccepted = pendingDenied = false;
             ++retries;
             cooldown = Math.max(cooldown, 2);
         }
         if (cooldown > 0) return;
+        if (retryTarget != null && unverified.contains(retryTarget)
+                && (!mc.world.isBlockLoaded(retryTarget) || !isReplaceable(retryTarget))) return;
 
-        int y = targetY < 0 ? MathHelper.floor(mc.player.getEntityBoundingBox().minY) - 1 : targetY;
+        boolean descending = wantsDescent();
+        int baseY = descentBaseY == Integer.MIN_VALUE
+                ? MathHelper.floor(mc.player.getEntityBoundingBox().minY) : descentBaseY;
+        int y = descending ? baseY - 2 : targetY < 0 ? baseY - 1 : targetY;
         for (BlockPos target : candidates(y)) {
             if (!mc.world.isBlockLoaded(target) || !isReplaceable(target)) continue;
             if (retryTarget != null && !retryTarget.equals(target)) {
@@ -97,6 +125,79 @@ public final class Scaffold extends Module {
             place(placement, slot);
             return; // At most one interaction per tick.
         }
+    }
+
+    /** The server responds with the attempted target block's authoritative state. */
+    public void onServerBlockChange(BlockPos pos, IBlockState state) {
+        if (!enabled || pos == null || state == null || !unverified.contains(pos)) return;
+        boolean solid = !state.getMaterial().isReplaceable() && state.isFullBlock();
+        if (solid) unverified.remove(pos);
+        if (pos.equals(pending)) {
+            pendingAccepted = solid;
+            pendingDenied = !solid;
+        }
+    }
+
+    @Override public void onInputUpdate(InputUpdateEvent event) {
+        if (mc.player == null || mc.world == null || event.getEntityPlayer() != mc.player
+                || mc.player.isRiding() || mc.player.capabilities.isFlying) return;
+        net.minecraft.util.MovementInput input = event.getMovementInput();
+        if (input.moveForward == 0F && input.moveStrafe == 0F) return;
+        AxisAlignedBB next = predictedBox(input.moveForward, input.moveStrafe);
+        if (wantsDescent() && hasTrustedSupport(next, 1D)) {
+            // Release vanilla edge-sneak only when a lower, server-verified landing exists.
+            input.sneak = false;
+            return;
+        }
+        if (!hasTrustedSupport(next, 0D)) {
+            input.moveForward = input.moveStrafe = 0F;
+            mc.player.motionX = mc.player.motionZ = 0D;
+        }
+    }
+
+    private void enforceSafety() {
+        if (mc.player.isRiding() || mc.player.capabilities.isFlying) return;
+        net.minecraft.util.MovementInput input = mc.player.movementInput;
+        if (input == null) return;
+        AxisAlignedBB next = predictedBox(input.moveForward, input.moveStrafe);
+        boolean descending = wantsDescent() && hasTrustedSupport(next, 1D);
+        if (!descending && !hasTrustedSupport(next, 0D)) {
+            mc.player.motionX = mc.player.motionZ = 0D;
+            MovementManager.requestHorizontalVelocity(this, 0D, 0D, 1000);
+        }
+        if (descending && !mc.player.onGround && hasTrustedSupport(mc.player.getEntityBoundingBox(), 1D)) {
+            mc.player.motionY = Math.min(mc.player.motionY, -descentSpeed / 100D);
+        }
+    }
+
+    private boolean wantsDescent() {
+        if (descentBaseY == Integer.MIN_VALUE) return false;
+        int key = mc.gameSettings.keyBindSneak.getKeyCode();
+        return key >= 0 ? Keyboard.isKeyDown(key)
+                : key <= -100 && key >= -115 && Mouse.isButtonDown(key + 100);
+    }
+
+    private AxisAlignedBB predictedBox(float forward, float strafe) {
+        double yaw = Math.toRadians(mc.player.rotationYaw);
+        double dx = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * .30D + mc.player.motionX;
+        double dz = (forward * Math.cos(yaw) + strafe * Math.sin(yaw)) * .30D + mc.player.motionZ;
+        dx = MathHelper.clamp(dx, -.75D, .75D);
+        dz = MathHelper.clamp(dz, -.75D, .75D);
+        return mc.player.getEntityBoundingBox().offset(dx, 0D, dz);
+    }
+
+    private boolean hasTrustedSupport(AxisAlignedBB box, double drop) {
+        AxisAlignedBB probe = new AxisAlignedBB(box.minX + .03D, box.minY - drop - .13D,
+                box.minZ + .03D, box.maxX - .03D, box.minY - drop + .03D, box.maxZ - .03D);
+        for (int x = MathHelper.floor(probe.minX); x <= MathHelper.floor(probe.maxX); ++x)
+            for (int y = MathHelper.floor(probe.minY); y <= MathHelper.floor(probe.maxY); ++y)
+                for (int z = MathHelper.floor(probe.minZ); z <= MathHelper.floor(probe.maxZ); ++z) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    if (!mc.world.isBlockLoaded(pos) || unverified.contains(pos)) continue;
+                    AxisAlignedBB collision = mc.world.getBlockState(pos).getCollisionBoundingBox(mc.world, pos);
+                    if (collision != null && collision.offset(pos).intersects(probe)) return true;
+                }
+        return false;
     }
 
     private List<BlockPos> candidates(int y) {
@@ -174,7 +275,7 @@ public final class Scaffold extends Module {
         Placement best = null;
         for (EnumFacing towardSupport : EnumFacing.values()) {
             BlockPos support = target.offset(towardSupport);
-            if (!mc.world.isBlockLoaded(support)) continue;
+            if (!mc.world.isBlockLoaded(support) || unverified.contains(support)) continue;
             IBlockState state = mc.world.getBlockState(support);
             EnumFacing face = towardSupport.getOpposite();
             if (!state.isSideSolid(mc.world, support, face) || state.getBlock().hasTileEntity(state)) continue;
@@ -202,17 +303,22 @@ public final class Scaffold extends Module {
                 PacketManager.send(new CPacketPlayer.Rotation(yaw, pitch, mc.player.onGround), name);
                 rotated = true;
             }
+            pending = placement.target.toImmutable();
+            pendingTicks = 0;
+            pendingAccepted = pendingDenied = false;
+            unverified.add(pending);
             EnumActionResult result = mc.playerController.processRightClickBlock(mc.player, mc.world,
                     placement.support, placement.face, placement.hit, EnumHand.MAIN_HAND);
             if (result == EnumActionResult.SUCCESS) {
                 mc.player.swingArm(EnumHand.MAIN_HAND);
-                pending = placement.target.toImmutable();
-                pendingTicks = 0;
             } else {
+                unverified.remove(pending);
+                pending = null;
+                pendingAccepted = pendingDenied = false;
                 retryTarget = placement.target.toImmutable();
                 ++retries;
             }
-            cooldown = Math.max(actionDelay, ncpProfile != 0 ? 2 : 1);
+            cooldown = Math.max(actionDelay, ncpProfile != 0 ? 2 : 0);
         } finally {
             mc.player.inventory.currentItem = oldSlot;
             if (rotated && mc.getConnection() != null) {

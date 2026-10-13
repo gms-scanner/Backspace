@@ -11,11 +11,15 @@ import net.minecraft.network.play.client.CPacketPlayer;
 import net.minecraft.network.play.server.SPacketPlayerPosLook;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
 import net.minecraft.network.play.server.SPacketExplosion;
+import net.minecraft.network.play.server.SPacketBlockChange;
+import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.math.BlockPos;
 import dev.goldforge.module.impl.Velocity;
 import dev.goldforge.module.impl.PacketFlyLab;
 import dev.goldforge.module.impl.NoFall;
 import dev.goldforge.module.impl.GroundSpoof;
 import dev.goldforge.module.impl.CraftCarry;
+import dev.goldforge.module.impl.Scaffold;
 
 /** Read-only observer for server position corrections, used by Phase diagnostics. */
 public final class PhasePacketObserver {
@@ -40,6 +44,8 @@ public final class PhasePacketObserver {
                     dev.goldforge.module.impl.LagWatch.recordPacket(true,message,System.nanoTime());
                     int velocityEntityId = -1;
                     SPacketExplosion explosion = null;
+                    SPacketBlockChange blockChange = message instanceof SPacketBlockChange
+                            ? (SPacketBlockChange) message : null;
                     if(message instanceof SPacketPlayerPosLook){
                         SPacketPlayerPosLook packet=(SPacketPlayerPosLook)message;
                         final Phase.CorrectionRecord record=Phase.recordServerCorrection(packet.getX(),packet.getY(),packet.getZ(),packet.getYaw(),packet.getPitch(),packet.getFlags());
@@ -62,6 +68,19 @@ public final class PhasePacketObserver {
                     }
                     if(message instanceof SPacketExplosion){
                         explosion=(SPacketExplosion)message;
+                    }
+                    if(blockChange!=null){
+                        final BlockPos pos=blockChange.getBlockPosition().toImmutable();
+                        final IBlockState state=blockChange.getBlockState();
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable apply=new Runnable(){@Override public void run(){
+                            dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
+                            if(module instanceof Scaffold)((Scaffold)module).onServerBlockChange(pos,state);
+                        }};
+                        // Capture the authoritative reply before packet_handler may defer it.
+                        // Scaffold also checks the world state before using the new support.
+                        if(client.isCallingFromMinecraftThread())apply.run();
+                        else client.addScheduledTask(apply);
                     }
                     super.channelRead(context,message);
                     if(velocityEntityId!=-1){
