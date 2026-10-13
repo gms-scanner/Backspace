@@ -27,6 +27,9 @@ public final class HandsEditor extends OneUIScreen {
     private int hand;
     private int mode;
     private int dragging = -1;
+    private int gizmoAxis = -1;
+    private float gizmoStartX, gizmoStartY;
+    private int gizmoStartValue;
 
     public HandsEditor(GuiScreen parent, Hands hands) {
         super(true);
@@ -55,8 +58,8 @@ public final class HandsEditor extends OneUIScreen {
         float tabY = y + 76F;
         button(vg, input, x + 24F, tabY, 120F, 32F, "MAINHAND", hand == 0);
         button(vg, input, x + 152F, tabY, 120F, 32F, "OFFHAND", hand == 1);
-        if (input.isAreaClicked(x + 24F, tabY, 120F, 32F)) { hand = 0; dragging = -1; }
-        if (input.isAreaClicked(x + 152F, tabY, 120F, 32F)) { hand = 1; dragging = -1; }
+        if (input.isAreaClicked(x + 24F, tabY, 120F, 32F)) { hand = 0; dragging = gizmoAxis = -1; }
+        if (input.isAreaClicked(x + 152F, tabY, 120F, 32F)) { hand = 1; dragging = gizmoAxis = -1; }
 
         float previewX = x + 24F, previewY = y + 124F;
         float previewW = Math.max(220F, w * .48F - 30F), previewH = h - 165F;
@@ -64,6 +67,7 @@ public final class HandsEditor extends OneUIScreen {
         n.drawHollowRoundRect(vg, previewX, previewY, previewW, previewH, 0xFF2B323A, 14F, 1F);
         label(vg, hand == 0 ? "MAINHAND PREVIEW" : "OFFHAND PREVIEW", previewX + 16F, previewY + 14F, 11F, MUTED);
         drawGizmo(vg, previewX, previewY, previewW, previewH);
+        handleGizmo(input, previewX, previewY, previewW, previewH);
 
         float controlsX = previewX + previewW + 18F;
         float controlsW = x + w - 24F - controlsX;
@@ -74,7 +78,7 @@ public final class HandsEditor extends OneUIScreen {
         for (int i = 0; i < 3; ++i) {
             float bx = controlsX + 16F + i * (modeW + gap);
             button(vg, input, bx, modeY, modeW, 30F, modes[i], mode == i);
-            if (input.isAreaClicked(bx, modeY, modeW, 30F)) { mode = i; dragging = -1; }
+            if (input.isAreaClicked(bx, modeY, modeW, 30F)) { mode = i; dragging = gizmoAxis = -1; }
         }
 
         int start = mode == 0 ? 0 : mode == 1 ? 3 : 6;
@@ -95,7 +99,7 @@ public final class HandsEditor extends OneUIScreen {
             hands.reset(hand);
             ConfigManager.save();
         }
-        label(vg, "Drag a slider or use − / +. ESC returns to modules.", x + 24F, y + h - 29F, 11F, MUTED);
+        label(vg, "Drag a colored handle or slider. ESC returns to modules.", x + 24F, y + h - 29F, 11F, MUTED);
     }
 
     private void drawGizmo(long vg, float x, float y, float w, float h) {
@@ -117,6 +121,9 @@ public final class HandsEditor extends OneUIScreen {
             n.drawCircle(vg, cx, cy, 65F, GREEN);
             n.drawCircle(vg, cx, cy, 62F, PANEL);
             n.drawRoundedRect(vg, cx - 1F, cy - 88F, 2F, 176F, RED, 1F);
+            n.drawCircle(vg, cx, cy - 88F, 6F, RED);
+            n.drawCircle(vg, cx + 65F, cy, 6F, GREEN);
+            n.drawCircle(vg, cx + 88F, cy, 6F, BLUE);
         } else {
             float edge = size + 18F;
             n.drawHollowRoundRect(vg, cx - edge * .5F, cy - edge * .5F,
@@ -126,6 +133,45 @@ public final class HandsEditor extends OneUIScreen {
         }
         label(vg, mode == 0 ? "POSITION" : mode == 1 ? "ROTATION" : "SCALE",
                 x + 17F, y + h - 28F, 11F, YELLOW);
+    }
+
+    private void handleGizmo(InputHandler input, float x, float y, float w, float h) {
+        float cx = x + w * .5F + hands.get(hand, 0) * .19F;
+        float cy = y + h * .52F - hands.get(hand, 1) * .19F;
+        float size = 58F * hands.get(hand, 6) / 100F;
+        int axis = -1;
+        if (mode == 0) {
+            if (input.isAreaClicked(cx + 81F, cy - 12F, 24F, 24F)) axis = 0;
+            else if (input.isAreaClicked(cx - 12F, cy - 100F, 24F, 24F)) axis = 1;
+            else if (input.isAreaClicked(cx - 12F, cy - 12F, 24F, 24F)) axis = 2;
+        } else if (mode == 1) {
+            if (input.isAreaClicked(cx - 12F, cy - 100F, 24F, 24F)) axis = 3;
+            else if (input.isAreaClicked(cx + 53F, cy - 12F, 24F, 24F)) axis = 4;
+            else if (input.isAreaClicked(cx + 76F, cy - 12F, 24F, 24F)) axis = 5;
+        } else {
+            float edge = size + 18F;
+            if (input.isAreaClicked(cx + edge * .5F - 13F, cy + edge * .5F - 13F, 26F, 26F)) axis = 6;
+        }
+        if (axis >= 0) {
+            gizmoAxis = axis;
+            gizmoStartX = input.mouseX();
+            gizmoStartY = input.mouseY();
+            gizmoStartValue = hands.get(hand, axis);
+        }
+        if (gizmoAxis < 0) return;
+        if (!Mouse.isButtonDown(0)) {
+            gizmoAxis = -1;
+            ConfigManager.save();
+            return;
+        }
+        float dx = input.mouseX() - gizmoStartX;
+        float dy = input.mouseY() - gizmoStartY;
+        int delta = gizmoAxis == 0 ? Math.round(dx / .19F)
+                : gizmoAxis == 1 ? -Math.round(dy / .19F)
+                : gizmoAxis == 2 ? Math.round((dx - dy) / .26F)
+                : gizmoAxis == 6 ? Math.round(dx - dy)
+                : Math.round(dx * 1.5F);
+        hands.set(hand, gizmoAxis, gizmoStartValue + delta);
     }
 
     private void drawSlider(long vg, InputHandler input, float x, float y, float w,
