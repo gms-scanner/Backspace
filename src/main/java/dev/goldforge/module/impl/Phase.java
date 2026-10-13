@@ -2,8 +2,13 @@ package dev.goldforge.module.impl;
 
 import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
+import dev.goldforge.network.PacketManager;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.network.play.client.CPacketPlayer;
+import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.EnumActionResult;
+import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.text.TextFormatting;
 import java.io.File;
@@ -53,6 +58,11 @@ public final class Phase extends Module {
     public int retryDelayTicks = 1;
     public int correctionWindowTicks = 4;
     public int handoffProbePauseTicks = 3;
+    public int pearlPitch = 76;
+    public int pearlCooldownTicks = 40;
+    public int pearlRequireSneak = 1;
+    private int pearlCooldown;
+    private boolean pearlArmed;
     private double lastX, lastY, lastZ, lastYaw, lastPitch;
     private boolean hasLastPosition;
     private int lastSampleTick;
@@ -75,9 +85,12 @@ public final class Phase extends Module {
     private int ncpLastStageLogTick = Integer.MIN_VALUE;
 
     public Phase() {
-        super("Phase", "Experimental incremental movement probe with packet and correction diagnostics.", Category.MOVEMENT, 0);
+        super("Phase", "Movement probes or a deliberate ender-pearl wall phase.", Category.MOVEMENT, 0);
         // Keep legacy saved mode=2 active: older configs used 2 for incremental movement.
-        addIntSetting("Mode (0 NCP sweep, 1 direct, 2 legacy sweep, 3 trace only, 4 NCP)", 0, 4, 1, () -> mode, v -> mode = v);
+        addIntSetting("Phase mode", 0, 5, 1, () -> mode, v -> mode = v);
+        addIntSetting("Pearl pitch", 55, 89, 1, () -> pearlPitch, v -> pearlPitch = v);
+        addIntSetting("Pearl cooldown (ticks)", 20, 120, 5, () -> pearlCooldownTicks, v -> pearlCooldownTicks = v);
+        addIntSetting("Pearl: require sneak (0/1)", 0, 1, 1, () -> pearlRequireSneak, v -> pearlRequireSneak = v);
         addIntSetting("NCP Freecam handoff window (seconds)", 1, 30, 1, () -> ncpWindowSeconds, v -> ncpWindowSeconds = v);
         addIntSetting("NCP Freecam pause after handoff (ticks)", 1, 40, 1, () -> ncpPauseTicks, v -> ncpPauseTicks = v);
         addIntSetting("Movement step (thousandths)", 1, 100, 1, () -> stepThousandths, v -> stepThousandths = v);
@@ -100,6 +113,8 @@ public final class Phase extends Module {
         lastConfiguredBias = sideBiasPercent;
         biasSweepDirection = activeSideBias < 0 ? -1 : 1;
         ncpFreecamStage = 0;
+        pearlCooldown = 0;
+        pearlArmed = true;
         ncpFreecamSettingsCaptured = false;
         addDiagnostic("TRACE_START tick=" + currentTick());
     }
@@ -112,11 +127,15 @@ public final class Phase extends Module {
         retryTicks = 0;
         pendingPhaseAttempt = false;
         pendingAttemptAlerted = false;
+        pearlCooldown = 0;
+        pearlArmed = true;
     }
 
     @Override public void tick() {
         EntityPlayerSP player = mc.player;
         if (player == null || mc.world == null) return;
+        if (pearlCooldown > 0) --pearlCooldown;
+        if (mode == 5) tickPearlPhase(player);
         if (mode == 4) {
             tickNcpFreecam(player);
         } else if (ncpFreecamSettingsCaptured) {
@@ -139,7 +158,7 @@ public final class Phase extends Module {
             lastHandoffPauseLogTick = player.ticksExisted;
             addDiagnostic("PHASE_PROBE_PAUSED_AFTER_FREECAM_HANDOFF tick=" + player.ticksExisted + " age=" + handoffAge);
         }
-        if (mode != 3 && mode != 4 && !pendingPhaseAttempt && retryTicks == 0 && !handoffProbePaused
+        if (mode != 3 && mode != 4 && mode != 5 && !pendingPhaseAttempt && retryTicks == 0 && !handoffProbePaused
                 && (player.collidedHorizontally || intersectsSolid(player))) attemptMovement(player);
         if (player.ticksExisted - lastSampleTick < Math.max(1, sampleIntervalTicks)) return;
         lastSampleTick = player.ticksExisted;
@@ -162,6 +181,54 @@ public final class Phase extends Module {
         lastX = player.posX; lastY = player.posY; lastZ = player.posZ;
         lastYaw = player.rotationYaw; lastPitch = player.rotationPitch;
         hasLastPosition = true;
+    }
+
+    /**
+     * One pearl per deliberate wall push. The server owns the resulting
+     * projectile collision and teleport; this mode never fabricates position.
+     */
+    private void tickPearlPhase(EntityPlayerSP player) {
+        boolean trigger = player.collidedHorizontally && player.movementInput.moveForward > 0F
+                && (pearlRequireSneak == 0 || mc.gameSettings.keyBindSneak.isKeyDown());
+        if (!trigger) { pearlArmed = true; return; }
+        if (!pearlArmed || pearlCooldown > 0 || mc.currentScreen != null
+                || player.movementInput.moveForward <= 0F || mc.playerController == null
+                || mc.getConnection() == null || player.getCooldownTracker().hasCooldown(Items.ENDER_PEARL)) return;
+        int original = player.inventory.currentItem;
+        int slot = -1;
+        for (int i = 0; i < 9; ++i) {
+            ItemStack stack = player.inventory.getStackInSlot(i);
+            if (!stack.isEmpty() && stack.getItem() == Items.ENDER_PEARL) { slot = i; break; }
+        }
+        if (slot < 0) return;
+        try {
+            player.inventory.currentItem = slot;
+            float pitch = clamp(pearlPitch, 55, 89);
+            if (!PacketManager.send(new CPacketPlayer.Rotation(player.rotationYaw, pitch, player.onGround), name)) return;
+            EnumActionResult result = mc.playerController.processRightClick(player, mc.world, EnumHand.MAIN_HAND);
+            pearlArmed = false;
+            if (result == EnumActionResult.SUCCESS) {
+                player.swingArm(EnumHand.MAIN_HAND);
+                pearlCooldown = Math.max(20, pearlCooldownTicks);
+                addDiagnostic("PEARL_THROW tick=" + player.ticksExisted + " pitch=" + pitch
+                        + " from=" + formatPosition(player.posX, player.posY, player.posZ));
+            } else pearlCooldown = 5;
+        } finally {
+            player.inventory.currentItem = original;
+            PacketManager.send(new CPacketPlayer.Rotation(player.rotationYaw, player.rotationPitch, player.onGround), name);
+        }
+    }
+
+    public static String modeName(int value) {
+        switch (value) {
+            case 0: return "SWEEP";
+            case 1: return "DIRECT";
+            case 2: return "LEGACY";
+            case 3: return "TRACE";
+            case 4: return "NCP";
+            case 5: return "PEARL";
+            default: return Integer.toString(value);
+        }
     }
 
     /** Runs Freecam's existing camera-window/handoff lifecycle without changing Freecam itself. */

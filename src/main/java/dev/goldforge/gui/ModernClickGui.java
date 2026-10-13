@@ -14,6 +14,8 @@ import dev.goldforge.module.impl.AutoSign;
 import dev.goldforge.module.impl.BlockESP;
 import dev.goldforge.module.impl.CustomChat;
 import dev.goldforge.module.impl.KillFX;
+import dev.goldforge.module.impl.Hands;
+import dev.goldforge.module.impl.Phase;
 import dev.goldforge.module.impl.ShaderFX;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
@@ -61,6 +63,8 @@ public final class ModernClickGui extends OneUIScreen {
     private boolean awaitingKeyBind;
     private int moduleScroll;
     private int settingsScroll;
+    private boolean inspectorHovered;
+    private String hoveredSettingName;
     private long openedAt;
 
     public ModernClickGui() { this(null); }
@@ -112,6 +116,8 @@ public final class ModernClickGui extends OneUIScreen {
         float modulesX = sidebarX + sidebarW + OUTER_INSET;
         float detailX = frameX + frameW - detailW - OUTER_INSET;
         float modulesW = detailX - modulesX - 18F;
+        inspectorHovered = input.isAreaHovered(detailX, contentY, detailW, contentH);
+        hoveredSettingName = null;
 
         drawSidebar(vg, input, sidebarX, contentY, sidebarW, contentH);
         drawModules(vg, input, modulesX, contentY, modulesW, contentH);
@@ -120,6 +126,20 @@ public final class ModernClickGui extends OneUIScreen {
         float footerY = lineY(frameY + frameH - 43F, 18F, 11F);
         text(vg, "RIGHT SHIFT  •  ESC CLOSE", frameX + OUTER_INSET, footerY, 11F, 0xFFB6BDC7);
         textRight(vg, "CLIENT READY", frameX + frameW - OUTER_INSET, footerY, 11F, MUTED);
+        if (hoveredSettingName != null) {
+            float tipW = Math.min(frameW - 32F,
+                    Math.max(320F, nvg.getTextWidth(vg, hoveredSettingName, 11F, Fonts.REGULAR) + 20F));
+            float tipX = Math.max(frameX + 16F, Math.min(detailX - 158F, frameX + frameW - tipW - 16F));
+            float tipY = contentY + contentH - 50F;
+            nvg.drawRoundedRect(vg, tipX, tipY, tipW, 37F, 0xFF252A31, 9F);
+            String first = trim(vg, hoveredSettingName, tipW - 18F, 11F);
+            text(vg, first, tipX + 9F, tipY + 6F, 11F, TEXT);
+            String hint = selectedModule instanceof Phase && "Phase mode".equals(hoveredSettingName)
+                    ? "Selected: " + Phase.modeName(((Phase) selectedModule).mode)
+                            + "  •  Pearl: sneak + push wall"
+                    : "Scroll or use ▲ ▼ for more settings";
+            text(vg, hint, tipX + 9F, tipY + 21F, 10F, MUTED);
+        }
     }
 
     private void drawBrand(long vg, float x, float y) {
@@ -319,11 +339,22 @@ public final class ModernClickGui extends OneUIScreen {
         int visible = Math.max(1, (int) ((y + h - settingsY - 22F) / 37F));
         int max = Math.max(0, settings.size() - visible);
         settingsScroll = Math.max(0, Math.min(settingsScroll, max));
+        if (max > 0) {
+            text(vg, (settingsScroll + 1) + "–" + Math.min(settings.size(), settingsScroll + visible)
+                    + " / " + settings.size(), x + w - 91F, settingsY, 10F, MUTED);
+            text(vg, "▲", x + w - 44F, settingsY - 2F, 12F, settingsScroll > 0 ? YELLOW : DIM);
+            text(vg, "▼", x + w - 25F, settingsY - 2F, 12F, settingsScroll < max ? YELLOW : DIM);
+            if (input.isAreaClicked(x + w - 48F, settingsY - 5F, 18F, 20F)) settingsScroll = Math.max(0, settingsScroll - 1);
+            if (input.isAreaClicked(x + w - 29F, settingsY - 5F, 18F, 20F)) settingsScroll = Math.min(max, settingsScroll + 1);
+        }
         for (int i = settingsScroll; i < Math.min(settings.size(), settingsScroll + visible); i++) {
             float sy = settingsY + 16F + (i - settingsScroll) * 37F;
             ModuleSetting setting = settings.get(i);
             nvg.drawRoundedRect(vg, x + 14F, sy, w - 28F, 31F, CARD, 9F);
-            text(vg, trim(vg, setting.name, w - 112F, 11F), x + 24F, sy + 10F, 11F, TEXT);
+            if (input.isAreaHovered(x + 14F, sy, w - 28F, 31F)) hoveredSettingName = setting.name;
+            String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
+                    ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
+            text(vg, trim(vg, rowLabel, w - 112F, 11F), x + 24F, sy + 10F, 11F, TEXT);
             text(vg, "−", x + w - 80F, sy + 7F, 16F, YELLOW);
             textRight(vg, Integer.toString(setting.get()), x + w - 42F, sy + 10F, 11F, TEXT);
             text(vg, "+", x + w - 30F, sy + 7F, 16F, YELLOW);
@@ -378,7 +409,11 @@ public final class ModernClickGui extends OneUIScreen {
 
     @Override public void onMouseScrolled(double amount) {
         if (amount == 0D) return;
-        moduleScroll = Math.max(0, moduleScroll + (amount > 0D ? -2 : 2));
+        if (inspectorHovered && selectedModule != null) {
+            settingsScroll = Math.max(0, settingsScroll + (amount > 0D ? -1 : 1));
+        } else {
+            moduleScroll = Math.max(0, moduleScroll + (amount > 0D ? -2 : 2));
+        }
     }
 
     @Override public void onKeyPressed(int keyCode, char typedChar, UKeyboard.Modifiers modifiers) {
@@ -419,7 +454,7 @@ public final class ModernClickGui extends OneUIScreen {
 
     private boolean hasSpecialEditor(Module module) {
         return module instanceof CustomChat || module instanceof ShaderFX || module instanceof KillFX
-                || module instanceof BlockESP || module instanceof AutoSign;
+                || module instanceof BlockESP || module instanceof AutoSign || module instanceof Hands;
     }
 
     private void openSpecialEditor() {
@@ -428,6 +463,7 @@ public final class ModernClickGui extends OneUIScreen {
         else if (selectedModule instanceof KillFX) ((KillFX) selectedModule).chooseSound();
         else if (selectedModule instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) selectedModule));
         else if (selectedModule instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) selectedModule));
+        else if (selectedModule instanceof Hands) ((Hands) selectedModule).openEditor();
     }
 
     private String trim(long vg, String value, float maxWidth, float size) {

@@ -191,9 +191,13 @@ public final class ShaderFX extends Module {
     public void onSpecificHandPre(final RenderSpecificHandEvent event){
         if(drawingHand||isCapturing()||hands==0||mc.player==null||mc.world==null||event.isCanceled()
                 ||mc.gameSettings.thirdPersonView!=0||mc.gameSettings.hideGUI||mc.player.isSpectator())return;
-        final Runnable geometry=()->mc.entityRenderer.itemRenderer.renderItemInFirstPerson(mc.player,
-                event.getPartialTicks(),event.getInterpolatedPitch(),event.getHand(),
-                event.getSwingProgress(),event.getItemStack(),event.getEquipProgress());
+        final Runnable geometry=()->{
+            dev.goldforge.module.Module hands=dev.goldforge.GoldForge.MODULES.get("Hands");
+            if(hands instanceof Hands&&hands.enabled&&!hands.isSuspended())((Hands)hands).renderTransformed(event);
+            else mc.entityRenderer.itemRenderer.renderItemInFirstPerson(mc.player,
+                    event.getPartialTicks(),event.getInterpolatedPitch(),event.getHand(),
+                    event.getSwingProgress(),event.getItemStack(),event.getEquipProgress());
+        };
         drawingHand=true;
         try{
             effects().draw(geometry,true,false,appearance(handStyle,fill,false),()->{
