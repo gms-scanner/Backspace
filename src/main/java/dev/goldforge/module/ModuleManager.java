@@ -82,6 +82,10 @@ public final class ModuleManager {
         if(capeLayerRenderers.add(renderer))renderer.addLayer(new BackspaceCapeLayer(renderer));
     }
     @SubscribeEvent public void specificHand(final RenderSpecificHandEvent event){
+        if(Minecraft.getMinecraft().currentScreen instanceof dev.goldforge.gui.HandsEditor){
+            event.setCanceled(true);
+            return;
+        }
         final Module module=get("ShaderFX");
         if(module instanceof ShaderFX&&module.enabled&&!module.isSuspended())safe(module,"hand-mask",new Runnable(){@Override public void run(){((ShaderFX)module).onSpecificHandPre(event);}});
         final Module hands=get("Hands");

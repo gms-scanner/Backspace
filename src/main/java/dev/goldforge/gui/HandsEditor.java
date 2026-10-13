@@ -172,10 +172,17 @@ public final class HandsEditor extends OneUIScreen {
         if (mc.player == null || mc.world == null) return;
         Layout layout = layout();
         float scale = layout.scale;
-        int px = Math.round((layout.previewX + 2F) * scale);
-        int py = mc.displayHeight - Math.round((layout.previewY + layout.previewH - 2F) * scale);
-        int pw = Math.round((layout.previewW - 4F) * scale);
-        int ph = Math.round((layout.previewH - 64F) * scale);
+        float availableW = layout.previewW - 16F;
+        float availableH = layout.previewH - 68F;
+        float aspect = mc.displayWidth / (float) mc.displayHeight;
+        float viewW = Math.min(availableW, availableH * aspect);
+        float viewH = viewW / aspect;
+        float viewX = layout.previewX + (layout.previewW - viewW) * .5F;
+        float viewY = layout.previewY + 36F + (availableH - viewH) * .5F;
+        int px = Math.round(viewX * scale);
+        int py = mc.displayHeight - Math.round((viewY + viewH) * scale);
+        int pw = Math.round(viewW * scale);
+        int ph = Math.round(viewH * scale);
         if (pw <= 0 || ph <= 0) return;
 
         int matrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
@@ -186,12 +193,12 @@ public final class HandsEditor extends OneUIScreen {
         GlStateManager.pushMatrix();
         try {
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
-            GL11.glScissor(px, py + Math.round(32F * scale), pw, ph);
-            GL11.glViewport(px, py, pw, Math.round(layout.previewH * scale));
+            GL11.glScissor(px, py, pw, ph);
+            GL11.glViewport(px, py, pw, ph);
             GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
             GlStateManager.matrixMode(GL11.GL_PROJECTION);
             GlStateManager.loadIdentity();
-            Project.gluPerspective(70F, pw / (float) Math.round(layout.previewH * scale), 0.05F, 100F);
+            Project.gluPerspective(mc.gameSettings.fovSetting, pw / (float) ph, 0.05F, 100F);
             GlStateManager.matrixMode(GL11.GL_MODELVIEW);
             GlStateManager.loadIdentity();
             GlStateManager.enableDepth();
