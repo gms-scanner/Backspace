@@ -8,7 +8,6 @@ import cc.polyfrost.oneconfig.utils.gui.OneUIScreen;
 import dev.goldforge.ConfigManager;
 import dev.goldforge.module.impl.Hands;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import org.lwjgl.input.Keyboard;
@@ -37,7 +36,7 @@ public final class HandsEditor extends OneUIScreen {
     private int gizmoStartValue;
 
     public HandsEditor(GuiScreen parent, Hands hands) {
-        super(true);
+        super(false);
         this.parent = parent;
         this.hands = hands;
     }
@@ -45,11 +44,41 @@ public final class HandsEditor extends OneUIScreen {
     @Override public void initScreen(int screenWidth, int screenHeight) {}
     @Override public boolean hasBackgroundBlur() { return true; }
 
+    private Layout layout() {
+        float scale = Math.max(.01F, Math.min(mc.displayWidth / 900F, mc.displayHeight / 570F));
+        float screenW = mc.displayWidth / scale;
+        float screenH = mc.displayHeight / scale;
+        float w = Math.min(840F, screenW - 28F);
+        float h = Math.min(490F, screenH - 28F);
+        return new Layout(scale, screenW, screenH, w, h);
+    }
+
+    private static final class Layout {
+        final float scale, screenW, screenH, x, y, w, h;
+        final float previewX, previewY, previewW, previewH;
+
+        Layout(float scale, float screenW, float screenH, float w, float h) {
+            this.scale = scale;
+            this.screenW = screenW;
+            this.screenH = screenH;
+            this.w = w;
+            this.h = h;
+            x = (screenW - w) * .5F;
+            y = (screenH - h) * .5F;
+            previewX = x + 24F;
+            previewY = y + 124F;
+            previewW = Math.max(220F, w * .48F - 30F);
+            previewH = h - 165F;
+        }
+    }
+
     @Override public void draw(long vg, float partialTicks, InputHandler input) {
         NanoVGHelper n = NanoVGHelper.INSTANCE;
-        float w = Math.min(840F, width - 28F), h = Math.min(490F, height - 28F);
-        float x = (width - w) * .5F, y = (height - h) * .5F;
-        n.drawRect(vg, 0, 0, width, height, 0x7704070B);
+        Layout layout = layout();
+        input.scale(layout.scale, layout.scale);
+        n.scale(vg, layout.scale, layout.scale);
+        float w = layout.w, h = layout.h, x = layout.x, y = layout.y;
+        n.drawRect(vg, 0, 0, layout.screenW, layout.screenH, 0x7704070B);
         n.drawDropShadow(vg, x, y, w, h, 22F, 0F, 8F);
         n.drawRoundedRect(vg, x, y, w, h, BG, 18F);
         n.drawHollowRoundRect(vg, x, y, w, h, 0xFF4F4316, 18F, 1F);
@@ -66,8 +95,8 @@ public final class HandsEditor extends OneUIScreen {
         if (input.isAreaClicked(x + 24F, tabY, 120F, 32F)) { hand = 0; dragging = gizmoAxis = -1; }
         if (input.isAreaClicked(x + 152F, tabY, 120F, 32F)) { hand = 1; dragging = gizmoAxis = -1; }
 
-        float previewX = x + 24F, previewY = y + 124F;
-        float previewW = Math.max(220F, w * .48F - 30F), previewH = h - 165F;
+        float previewX = layout.previewX, previewY = layout.previewY;
+        float previewW = layout.previewW, previewH = layout.previewH;
         n.drawRoundedRect(vg, previewX, previewY, previewW, previewH, PANEL, 14F);
         n.drawHollowRoundRect(vg, previewX, previewY, previewW, previewH, 0xFF2B323A, 14F, 1F);
         label(vg, hand == 0 ? "LIVE VIEW · MAINHAND" : "LIVE VIEW · OFFHAND", previewX + 16F, previewY + 14F, 11F, MUTED);
@@ -141,16 +170,12 @@ public final class HandsEditor extends OneUIScreen {
     /** Runs after NanoVG's frame so Minecraft's 3D renderer cannot corrupt its GL state. */
     public void renderLiveHands(float partialTicks) {
         if (mc.player == null || mc.world == null) return;
-        float w = Math.min(840F, width - 28F), h = Math.min(490F, height - 28F);
-        float x = (width - w) * .5F, y = (height - h) * .5F;
-        float previewX = x + 24F, previewY = y + 124F;
-        float previewW = Math.max(220F, w * .48F - 30F), previewH = h - 165F;
-        ScaledResolution resolution = new ScaledResolution(mc);
-        int factor = resolution.getScaleFactor();
-        int px = Math.round((previewX + 2F) * factor);
-        int py = mc.displayHeight - Math.round((previewY + previewH - 2F) * factor);
-        int pw = Math.round((previewW - 4F) * factor);
-        int ph = Math.round((previewH - 64F) * factor);
+        Layout layout = layout();
+        float scale = layout.scale;
+        int px = Math.round((layout.previewX + 2F) * scale);
+        int py = mc.displayHeight - Math.round((layout.previewY + layout.previewH - 2F) * scale);
+        int pw = Math.round((layout.previewW - 4F) * scale);
+        int ph = Math.round((layout.previewH - 64F) * scale);
         if (pw <= 0 || ph <= 0) return;
 
         int matrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
@@ -161,12 +186,12 @@ public final class HandsEditor extends OneUIScreen {
         GlStateManager.pushMatrix();
         try {
             GL11.glEnable(GL11.GL_SCISSOR_TEST);
-            GL11.glScissor(px, py + Math.round(32F * factor), pw, ph);
-            GL11.glViewport(px, py, pw, Math.round(previewH * factor));
+            GL11.glScissor(px, py + Math.round(32F * scale), pw, ph);
+            GL11.glViewport(px, py, pw, Math.round(layout.previewH * scale));
             GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
             GlStateManager.matrixMode(GL11.GL_PROJECTION);
             GlStateManager.loadIdentity();
-            Project.gluPerspective(70F, pw / (float) Math.round(previewH * factor), 0.05F, 100F);
+            Project.gluPerspective(70F, pw / (float) Math.round(layout.previewH * scale), 0.05F, 100F);
             GlStateManager.matrixMode(GL11.GL_MODELVIEW);
             GlStateManager.loadIdentity();
             GlStateManager.enableDepth();
