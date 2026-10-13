@@ -238,4 +238,3 @@ public final class Scaffold extends Module {
         }
     }
 }
-
