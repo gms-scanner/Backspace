@@ -112,6 +112,11 @@ public final class GoldForge {
         mc.fontRenderer.drawString(VERSION,versionX,10,0xFFEEEEEE);
     }
 
+    @SubscribeEvent public void drawHandsEditorPreview(GuiScreenEvent.DrawScreenEvent.Post event) {
+        if (event.getGui() instanceof dev.goldforge.gui.HandsEditor)
+            ((dev.goldforge.gui.HandsEditor) event.getGui()).renderLiveHands(event.getRenderPartialTicks());
+    }
+
     @SubscribeEvent public void drawInGameBrand(net.minecraftforge.client.event.RenderGameOverlayEvent.Post event) {
         if(event.getType()!=net.minecraftforge.client.event.RenderGameOverlayEvent.ElementType.TEXT)return;
         Minecraft mc=Minecraft.getMinecraft();
@@ -126,5 +131,3 @@ public final class GoldForge {
         mc.fontRenderer.drawString(VERSION,textX,y+6,0xFFF0F0F0);
     }
 }
-
-

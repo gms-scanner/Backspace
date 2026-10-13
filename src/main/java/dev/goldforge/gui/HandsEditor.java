@@ -8,8 +8,13 @@ import cc.polyfrost.oneconfig.utils.gui.OneUIScreen;
 import dev.goldforge.ConfigManager;
 import dev.goldforge.module.impl.Hands;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.RenderHelper;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.Project;
 
 /** Visual two-hand editor with move, rotate and resize controls. */
 public final class HandsEditor extends OneUIScreen {
@@ -65,7 +70,7 @@ public final class HandsEditor extends OneUIScreen {
         float previewW = Math.max(220F, w * .48F - 30F), previewH = h - 165F;
         n.drawRoundedRect(vg, previewX, previewY, previewW, previewH, PANEL, 14F);
         n.drawHollowRoundRect(vg, previewX, previewY, previewW, previewH, 0xFF2B323A, 14F, 1F);
-        label(vg, hand == 0 ? "MAINHAND PREVIEW" : "OFFHAND PREVIEW", previewX + 16F, previewY + 14F, 11F, MUTED);
+        label(vg, hand == 0 ? "LIVE VIEW · MAINHAND" : "LIVE VIEW · OFFHAND", previewX + 16F, previewY + 14F, 11F, MUTED);
         drawGizmo(vg, previewX, previewY, previewW, previewH);
         handleGizmo(input, previewX, previewY, previewW, previewH);
 
@@ -107,8 +112,6 @@ public final class HandsEditor extends OneUIScreen {
         float cx = x + w * .5F + hands.get(hand, 0) * .19F;
         float cy = y + h * .52F - hands.get(hand, 1) * .19F;
         float size = 58F * hands.get(hand, 6) / 100F;
-        n.drawRoundedRect(vg, cx - size * .5F, cy - size * .3F, size, size * .6F, 0xFF48515D, 9F);
-        n.drawHollowRoundRect(vg, cx - size * .5F, cy - size * .3F, size, size * .6F, 0xFF8694A3, 9F, 1F);
         if (mode == 0) {
             n.drawRoundedRect(vg, cx - 92F, cy - 1F, 184F, 2F, RED, 1F);
             n.drawRoundedRect(vg, cx - 1F, cy - 88F, 2F, 176F, GREEN, 1F);
@@ -133,6 +136,55 @@ public final class HandsEditor extends OneUIScreen {
         }
         label(vg, mode == 0 ? "POSITION" : mode == 1 ? "ROTATION" : "SCALE",
                 x + 17F, y + h - 28F, 11F, YELLOW);
+    }
+
+    /** Runs after NanoVG's frame so Minecraft's 3D renderer cannot corrupt its GL state. */
+    public void renderLiveHands(float partialTicks) {
+        if (mc.player == null || mc.world == null) return;
+        float w = Math.min(840F, width - 28F), h = Math.min(490F, height - 28F);
+        float x = (width - w) * .5F, y = (height - h) * .5F;
+        float previewX = x + 24F, previewY = y + 124F;
+        float previewW = Math.max(220F, w * .48F - 30F), previewH = h - 165F;
+        ScaledResolution resolution = new ScaledResolution(mc);
+        int factor = resolution.getScaleFactor();
+        int px = Math.round((previewX + 2F) * factor);
+        int py = mc.displayHeight - Math.round((previewY + previewH - 2F) * factor);
+        int pw = Math.round((previewW - 4F) * factor);
+        int ph = Math.round((previewH - 64F) * factor);
+        if (pw <= 0 || ph <= 0) return;
+
+        int matrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
+        GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+        GlStateManager.matrixMode(GL11.GL_PROJECTION);
+        GlStateManager.pushMatrix();
+        GlStateManager.matrixMode(GL11.GL_MODELVIEW);
+        GlStateManager.pushMatrix();
+        try {
+            GL11.glEnable(GL11.GL_SCISSOR_TEST);
+            GL11.glScissor(px, py + Math.round(32F * factor), pw, ph);
+            GL11.glViewport(px, py, pw, Math.round(previewH * factor));
+            GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+            GlStateManager.matrixMode(GL11.GL_PROJECTION);
+            GlStateManager.loadIdentity();
+            Project.gluPerspective(70F, pw / (float) Math.round(previewH * factor), 0.05F, 100F);
+            GlStateManager.matrixMode(GL11.GL_MODELVIEW);
+            GlStateManager.loadIdentity();
+            GlStateManager.enableDepth();
+            GlStateManager.enableTexture2D();
+            GlStateManager.enableCull();
+            GlStateManager.color(1F, 1F, 1F, 1F);
+            RenderHelper.enableStandardItemLighting();
+            hands.renderPreview(partialTicks);
+        } finally {
+            RenderHelper.disableStandardItemLighting();
+            GlStateManager.disableDepth();
+            GlStateManager.matrixMode(GL11.GL_MODELVIEW);
+            GlStateManager.popMatrix();
+            GlStateManager.matrixMode(GL11.GL_PROJECTION);
+            GlStateManager.popMatrix();
+            GlStateManager.matrixMode(matrixMode);
+            GL11.glPopAttrib();
+        }
     }
 
     private void handleGizmo(InputHandler input, float x, float y, float w, float h) {

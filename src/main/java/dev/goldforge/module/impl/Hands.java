@@ -80,6 +80,29 @@ public final class Hands extends Module {
         }
     }
 
+    /** Draws the held items and arms in the editor, even while the module is disabled. */
+    public void renderPreview(float partialTicks) {
+        if (mc.player == null || mc.world == null) return;
+        float pitch = mc.player.prevRotationPitch
+                + (mc.player.rotationPitch - mc.player.prevRotationPitch) * partialTicks;
+        for (EnumHand side : EnumHand.values()) {
+            int index = side == EnumHand.MAIN_HAND ? 0 : 1;
+            GlStateManager.pushMatrix();
+            try {
+                GlStateManager.translate(get(index, 0) / 100F, get(index, 1) / 100F, get(index, 2) / 100F);
+                GlStateManager.rotate(get(index, 3), 1F, 0F, 0F);
+                GlStateManager.rotate(get(index, 4), 0F, 1F, 0F);
+                GlStateManager.rotate(get(index, 5), 0F, 0F, 1F);
+                float scale = get(index, 6) / 100F;
+                GlStateManager.scale(scale, scale, scale);
+                mc.entityRenderer.itemRenderer.renderItemInFirstPerson(mc.player, partialTicks,
+                        pitch, side, 0F, mc.player.getHeldItem(side), 0F);
+            } finally {
+                GlStateManager.popMatrix();
+            }
+        }
+    }
+
     public void onSpecificHand(RenderSpecificHandEvent event) {
         if (drawing || event.isCanceled() || mc.player == null || mc.world == null
                 || mc.gameSettings.thirdPersonView != 0 || mc.player.isSpectator()) return;
