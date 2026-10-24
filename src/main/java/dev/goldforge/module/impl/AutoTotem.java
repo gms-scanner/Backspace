@@ -23,7 +23,7 @@ import net.minecraft.enchantment.EnchantmentHelper;
 
 /** Keeps a totem in the offhand and optionally eats a golden apple during lower-risk windows. */
 public final class AutoTotem extends Module {
-    public int advanced=0, gapHealth=14, threatRadius=10;
+    public int advanced=0, gapHealth=14, threatRadius=10,offhandCrystal=0,totemHealth=12;
     private boolean startedGap;
     private int scanDelay,gapRetry,gapReturnSlot=-1;
     private Threat cachedThreat=new Threat(0D,false,false);
@@ -33,15 +33,22 @@ public final class AutoTotem extends Module {
         addIntSetting("Advanced (0/1)",0,1,1,()->advanced,v->advanced=v);
         addIntSetting("Gap health",4,20,1,()->gapHealth,v->gapHealth=v);
         addIntSetting("Threat radius",4,16,1,()->threatRadius,v->threatRadius=v);
+        addIntSetting("Offhand crystal (0/1)",0,1,1,()->offhandCrystal,v->offhandCrystal=v);
+        addIntSetting("Totem health",4,20,1,()->totemHealth,v->totemHealth=v);
     }
 
     @Override public void tick(){
         if(mc.player==null||mc.world==null||mc.playerController==null)return;
         if(scanDelay--<=0){cachedThreat=assessThreat();scanDelay=2;}
+        double health=mc.player.getHealth()+mc.player.getAbsorptionAmount();
+        boolean danger=health<=totemHealth||cachedThreat.lethal||cachedThreat.imminent
+                ||(cachedThreat.damage>0D&&cachedThreat.damage+2D>=health);
         ItemStack offhand=mc.player.getHeldItemOffhand();
-        if(offhand.getItem()!=Items.TOTEM_OF_UNDYING){
+        if(danger||offhandCrystal==0){
+            if(offhand.getItem()!=Items.TOTEM_OF_UNDYING){stopGap();if(findAndEquip(Items.TOTEM_OF_UNDYING))return;}
+        }else if(offhand.getItem()!=Items.END_CRYSTAL){
             stopGap();
-            if(findAndEquipTotem())return;
+            if(findAndEquip(Items.END_CRYSTAL))return;
         }
         if(advanced==0||mc.player.getHealth()+mc.player.getAbsorptionAmount()>gapHealth||cachedThreat.lethal||cachedThreat.imminent){
             stopGap();return;
@@ -49,8 +56,8 @@ public final class AutoTotem extends Module {
         gapIfSafe();
     }
 
-    private boolean findAndEquipTotem(){
-        int slot=InventoryManager.findItem(mc,Items.TOTEM_OF_UNDYING);if(slot<0)return false;
+    private boolean findAndEquip(net.minecraft.item.Item item){
+        int slot=InventoryManager.findItem(mc,item);if(slot<0)return false;
         int hotbar=slot<9?slot:mc.player.inventory.currentItem;
         if(slot>=9&&!InventoryManager.moveToHotbar(mc,slot,hotbar))return false;
         mc.playerController.windowClick(mc.player.inventoryContainer.windowId,45,hotbar,ClickType.SWAP,mc.player);return true;
