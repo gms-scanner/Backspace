@@ -142,6 +142,17 @@ public final class PhasePacketObserver {
                 }
                 @Override public void write(ChannelHandlerContext context,Object message,io.netty.channel.ChannelPromise promise)throws Exception{
                     dev.goldforge.module.impl.LagWatch.recordPacket(false,message,System.nanoTime());
+                    if(message instanceof net.minecraft.network.play.client.CPacketKeepAlive){
+                        dev.goldforge.module.Module spoof=dev.goldforge.GoldForge.MODULES.get("PingSpoof");
+                        if(spoof instanceof dev.goldforge.module.impl.PingSpoof&&spoof.enabled&&!spoof.isSuspended()){
+                            int delay=Math.max(0,Math.min(5000,((dev.goldforge.module.impl.PingSpoof)spoof).delayMs));
+                            if(delay>0){
+                                final Object packet=message;
+                                context.executor().schedule(()->context.writeAndFlush(packet,promise),delay,java.util.concurrent.TimeUnit.MILLISECONDS);
+                                return;
+                            }
+                        }
+                    }
                     if(message instanceof net.minecraft.network.play.client.CPacketCloseWindow&&CraftCarry.shouldKeepOpen((net.minecraft.network.play.client.CPacketCloseWindow)message)){promise.setSuccess();return;}
                     if(message instanceof CPacketPlayer){
                         message=NoFall.rewrite((CPacketPlayer)message);

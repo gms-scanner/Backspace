@@ -4,6 +4,7 @@ import dev.goldforge.GoldForge;
 import dev.goldforge.module.Module;
 import dev.goldforge.module.impl.HudArrayList;
 import dev.goldforge.module.impl.HudInfo;
+import dev.goldforge.module.impl.InventoryHud;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
@@ -20,6 +21,7 @@ public final class HudEditor extends GuiScreen {
     private final GuiScreen parent;
     private HudArrayList hud;
     private HudInfo info;
+    private InventoryHud inventory;
     private int dragging;
     private int dragX,dragY;
 
@@ -30,6 +32,8 @@ public final class HudEditor extends GuiScreen {
         hud=module instanceof HudArrayList?(HudArrayList)module:null;
         Module infoModule=GoldForge.MODULES.get("Info HUD");
         info=infoModule instanceof HudInfo?(HudInfo)infoModule:null;
+        Module inventoryModule=GoldForge.MODULES.get("Inventory HUD");
+        inventory=inventoryModule instanceof InventoryHud?(InventoryHud)inventoryModule:null;
     }
 
     @Override public void drawScreen(int mouseX,int mouseY,float partialTicks) {
@@ -38,9 +42,11 @@ public final class HudEditor extends GuiScreen {
         drawCenteredString(fontRenderer,"Drag either preview. Elements snap to an 8 px corner inset.",width/2,34,0xFFCCCCCC);
         if(hud!=null)drawArrayList();
         if(info!=null)drawInfo();
+        if(inventory!=null)inventory.draw(inventory.x,inventory.y);
         drawBrand();
         button(width/2-138,height-51,132,20,"ARRAYLIST  "+(hud!=null&&hud.enabled?"ON":"OFF"),hud!=null&&hud.enabled);
         button(width/2+6,height-51,132,20,"INFO HUD  "+(info!=null&&info.enabled?"ON":"OFF"),info!=null&&info.enabled);
+        button(width/2-66,height-76,132,20,"INVENTORY  "+(inventory!=null&&inventory.enabled?"ON":"OFF"),inventory!=null&&inventory.enabled);
         drawCenteredString(fontRenderer,"ESC TO RETURN",width/2,height-18,0xFF777777);
     }
 
@@ -128,6 +134,7 @@ public final class HudEditor extends GuiScreen {
 
     @Override protected void mouseClicked(int mouseX,int mouseY,int mouseButton) throws IOException {
         if(hud==null)return;
+        if(mouseY>=height-76&&mouseY<=height-56&&mouseX>=width/2-66&&mouseX<=width/2+66){if(inventory!=null)inventory.toggle();return;}
         if(mouseY>=height-51&&mouseY<=height-31&&mouseX>=width/2-138&&mouseX<=width/2-6){if(hud!=null)hud.toggle();dev.goldforge.ConfigManager.save();return;}
         if(mouseY>=height-51&&mouseY<=height-31&&mouseX>=width/2+6&&mouseX<=width/2+138){if(info!=null)info.toggle();dev.goldforge.ConfigManager.save();return;}
         List<String> rows=rows();int listW=arrayWidth(rows),listH=arrayHeight(rows);
@@ -135,6 +142,7 @@ public final class HudEditor extends GuiScreen {
         int listTop=hud.bottomAnchored?height-hud.posY-listH:hud.posY;
         if(mouseX>=listLeft-4&&mouseX<=listLeft+listW&&mouseY>=listTop-3&&mouseY<=listTop+listH){dragging=1;dragX=mouseX-listLeft;dragY=mouseY-listTop;return;}
         if(info!=null){String[] lines=info.editorPreviewLines();int max=0;for(String line:lines)max=Math.max(max,fontRenderer.getStringWidth(line));int infoH=lines.length*(fontRenderer.FONT_HEIGHT+4);int infoLeft=info.x,infoTop=info.y;if(mouseX>=infoLeft-4&&mouseX<=infoLeft+max+6&&mouseY>=infoTop-3&&mouseY<=infoTop+infoH){dragging=3;dragX=mouseX-infoLeft;dragY=mouseY-infoTop;return;}}
+        if(inventory!=null&&mouseX>=inventory.x&&mouseX<inventory.x+InventoryHud.WIDTH&&mouseY>=inventory.y&&mouseY<inventory.y+InventoryHud.HEIGHT){dragging=4;dragX=mouseX-inventory.x;dragY=mouseY-inventory.y;return;}
         int brandW=brandWidth(),brandLeft=BrandMark.hudRight?width-BrandMark.hudX-brandW:BrandMark.hudX;
         int brandTop=BrandMark.hudBottom?height-BrandMark.hudY-18:BrandMark.hudY;
         if(mouseX>=brandLeft&&mouseX<=brandLeft+brandW&&mouseY>=brandTop&&mouseY<=brandTop+18){dragging=2;dragX=mouseX-brandLeft;dragY=mouseY-brandTop;return;}
@@ -145,6 +153,7 @@ public final class HudEditor extends GuiScreen {
         if(dragging==1&&hud!=null)snapArray(mouseX-dragX,mouseY-dragY);
         else if(dragging==2)snapBrand(mouseX-dragX,mouseY-dragY);
         else if(dragging==3&&info!=null){info.x=clamp(mouseX-dragX,4,Math.max(4,width-24));info.y=clamp(mouseY-dragY,4,Math.max(4,height-100));}
+        else if(dragging==4&&inventory!=null){inventory.x=clamp(mouseX-dragX,4,Math.max(4,width-InventoryHud.WIDTH-4));inventory.y=clamp(mouseY-dragY,45,Math.max(45,height-InventoryHud.HEIGHT-82));}
         super.mouseClickMove(mouseX,mouseY,clickedMouseButton,timeSinceLastClick);
     }
     @Override protected void mouseReleased(int mouseX,int mouseY,int state){if(dragging!=0)dev.goldforge.ConfigManager.save();dragging=0;super.mouseReleased(mouseX,mouseY,state);}
