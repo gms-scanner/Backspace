@@ -6,6 +6,7 @@ import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
 import dev.goldforge.module.ModuleSetting;
 import dev.goldforge.module.impl.BlockESP;
+import dev.goldforge.module.impl.DIESP;
 import dev.goldforge.module.impl.AutoSign;
 import dev.goldforge.module.impl.CustomChat;
 import dev.goldforge.module.impl.KillFX;
@@ -374,6 +375,8 @@ public final class ClickGui extends GuiScreen {
             label = "IMPORT WAV"; value = ((KillFX) module).soundLabel();
         } else if (module instanceof BlockESP) {
             label = "BLOCK TARGETS"; value = ((BlockESP) module).selectedBlocks().size() + " selected";
+        } else if (module instanceof DIESP) {
+            label = "ITEM TARGETS"; value = ((DIESP) module).selectedCount() + " selected";
         } else if (module instanceof AutoSign) {
             label = "EDIT SIGN TEXT"; value = "4 lines / formatting";
         } else {
@@ -561,6 +564,7 @@ public final class ClickGui extends GuiScreen {
                 else if (selectedModule instanceof ShaderFX) ((ShaderFX) selectedModule).chooseTexture();
                 else if (selectedModule instanceof KillFX) ((KillFX) selectedModule).chooseSound();
                 else if (selectedModule instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) selectedModule));
+                else if (selectedModule instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) selectedModule));
                 else if (selectedModule instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) selectedModule));
                 return;
             }

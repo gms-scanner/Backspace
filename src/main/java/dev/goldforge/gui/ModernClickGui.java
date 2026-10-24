@@ -12,6 +12,7 @@ import dev.goldforge.module.Module;
 import dev.goldforge.module.ModuleSetting;
 import dev.goldforge.module.impl.AutoSign;
 import dev.goldforge.module.impl.BlockESP;
+import dev.goldforge.module.impl.DIESP;
 import dev.goldforge.module.impl.CustomChat;
 import dev.goldforge.module.impl.KillFX;
 import dev.goldforge.module.impl.Hands;
@@ -454,7 +455,7 @@ public final class ModernClickGui extends OneUIScreen {
 
     private boolean hasSpecialEditor(Module module) {
         return module instanceof CustomChat || module instanceof ShaderFX || module instanceof KillFX
-                || module instanceof BlockESP || module instanceof AutoSign || module instanceof Hands;
+                || module instanceof BlockESP || module instanceof DIESP || module instanceof AutoSign || module instanceof Hands;
     }
 
     private void openSpecialEditor() {
@@ -462,6 +463,7 @@ public final class ModernClickGui extends OneUIScreen {
         else if (selectedModule instanceof ShaderFX) ((ShaderFX) selectedModule).chooseTexture();
         else if (selectedModule instanceof KillFX) ((KillFX) selectedModule).chooseSound();
         else if (selectedModule instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) selectedModule));
+        else if (selectedModule instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) selectedModule));
         else if (selectedModule instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) selectedModule));
         else if (selectedModule instanceof Hands) ((Hands) selectedModule).openEditor();
     }

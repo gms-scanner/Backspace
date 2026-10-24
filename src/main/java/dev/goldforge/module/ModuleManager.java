@@ -40,7 +40,7 @@ public final class ModuleManager {
         modules.add(new FastUse()); modules.add(new CraftCarry());
         modules.add(new Surround()); modules.add(new SelfTrap()); modules.add(new WitherPreview()); modules.add(new BaseFinder()); modules.add(new HudArrayList()); modules.add(new NoRender());
         modules.add(new Snapper()); modules.add(new PlayerESP()); modules.add(new Nametags()); modules.add(new Radar()); modules.add(new ColorEnchant()); modules.add(new ShaderFX()); modules.add(new Hands()); modules.add(new KillFX()); modules.add(new WaypointESP()); modules.add(new HudInfo()); modules.add(new LagWatch()); modules.add(new BlockESP()); modules.add(new BreakESP()); modules.add(new PopChams()); modules.add(new LogoutSpots()); modules.add(new PearlTrace()); modules.add(new Fullbright()); modules.add(new Cape()); modules.add(new NewChunks());
-        modules.add(new Jesus());
+        modules.add(new Jesus()); modules.add(new DIESP());
         for(Category category:Category.values())byCategory.put(category,new ArrayList<Module>());
         for(Module module:modules)byCategory.get(module.category).add(module);
         for(Category category:Category.values())byCategory.put(category,Collections.unmodifiableList(byCategory.get(category)));
