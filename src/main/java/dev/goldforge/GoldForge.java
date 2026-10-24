@@ -74,6 +74,7 @@ public final class GoldForge {
         ClientCommandHandler.instance.registerCommand(new FriendCommand());
         ClientCommandHandler.instance.registerCommand(new PrinterCommand());
         ClientCommandHandler.instance.registerCommand(new WaypointCommand());
+        ClientCommandHandler.instance.registerCommand(new WhisperSpamCommand());
     }
 
     @SubscribeEvent public void chooseMainMenuSplash(GuiScreenEvent.InitGuiEvent.Post event){
