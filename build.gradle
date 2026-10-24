@@ -5,7 +5,7 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 
-version = 'dev-3.5-beta'
+version = 'dev-4.0-beta'
 group = 'dev.goldforge'
 archivesBaseName = 'backspace'
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## dev-4.0-beta 2026-10-24
+
+- Reworked module browser with pixel-styled yellow and black category windows.
+- Added Inventory HUD, DIESP, PingSpoof, WhisperSpam, BoatPhase, and AutoTotem offhand crystal mode.
+- Kept the CrystalAura harness in the release build workflow.
+
 ## dev-3.5-beta 2026-10-13
 
 ### Added
