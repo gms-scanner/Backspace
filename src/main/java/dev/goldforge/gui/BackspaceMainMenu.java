@@ -305,7 +305,7 @@ public final class BackspaceMainMenu extends GuiScreen {
             mc.displayGuiScreen(new GuiOptions(this, mc.gameSettings)); return;
         }
         if (inside(mouseX, mouseY, rowX, rowY + rowGap * 2 - 5, left + 194, rowY + rowGap * 2 + 35)) {
-            mc.displayGuiScreen(new ModernClickGui(this)); return;
+            mc.displayGuiScreen(new PixelClickGui(this)); return;
         }
         if (inside(mouseX, mouseY, rowX, rowY + rowGap * 3 - 5, left + 194, rowY + rowGap * 3 + 35)) {
             if (mc.world == null) mc.shutdown(); else mc.displayGuiScreen(null);
@@ -342,7 +342,7 @@ public final class BackspaceMainMenu extends GuiScreen {
             switch (selected) {
                 case PLAY: if (playExpanded) openSingleplayer(); else playExpanded = true; break;
                 case SETTINGS: mc.displayGuiScreen(new GuiOptions(this, mc.gameSettings)); break;
-                case MODULES: mc.displayGuiScreen(new ModernClickGui(this)); break;
+                case MODULES: mc.displayGuiScreen(new PixelClickGui(this)); break;
                 case QUIT: if (mc.world == null) mc.shutdown(); else mc.displayGuiScreen(null); break;
                 case 4: openSingleplayer(); break;
                 case 5: openMultiplayer(); break;

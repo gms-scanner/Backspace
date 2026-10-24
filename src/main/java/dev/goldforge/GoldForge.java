@@ -97,7 +97,7 @@ public final class GoldForge {
         if(!Keyboard.getEventKeyState())return;
         Minecraft mc=Minecraft.getMinecraft();
         if(Keyboard.getEventKey()==Keyboard.KEY_RSHIFT && mc.currentScreen==null) {
-            mc.displayGuiScreen(new dev.goldforge.gui.ModernClickGui());
+            mc.displayGuiScreen(new dev.goldforge.gui.PixelClickGui());
             return;
         }
         if(mc.currentScreen==null) MODULES.onKey(Keyboard.getEventKey());

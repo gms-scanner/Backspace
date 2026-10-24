@@ -16,7 +16,7 @@ public final class GuiCommand extends CommandBase {
         Minecraft.getMinecraft().addScheduledTask(() -> run(sender,args));
     }
     private void run(ICommandSender sender,String[] args){
-        if(args.length==0){Minecraft.getMinecraft().displayGuiScreen(new dev.goldforge.gui.ModernClickGui());return;}
+        if(args.length==0){Minecraft.getMinecraft().displayGuiScreen(new dev.goldforge.gui.PixelClickGui());return;}
         String action=args[0].toLowerCase(java.util.Locale.ROOT);
         if("modules".equals(action)){for(Module module:GoldForge.MODULES.all())tell(sender,(module.enabled?"§aON §f":"§7OFF ")+module.name+" §8["+module.category.name()+"]");return;}
         if("movementdebug".equals(action)){movementdebug(sender);return;}
