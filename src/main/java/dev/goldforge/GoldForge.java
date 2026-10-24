@@ -20,7 +20,7 @@ import java.lang.reflect.Field;
 public final class GoldForge {
     public static final String MODID = "goldforge";
     public static final String NAME = "Backspace";
-    public static final String VERSION = "dev-4.0-beta";
+    public static final String VERSION = "dev-4.0.1-beta";
     public static final ModuleManager MODULES = new ModuleManager();
     private static final Field SPLASH_FIELD=findSplashField();
     private static final String[] CUSTOM_SPLASHES={

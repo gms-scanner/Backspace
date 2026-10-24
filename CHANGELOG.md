@@ -1,5 +1,12 @@
 # Changelog
 
+## dev-4.0.1-beta 2026-10-24
+
+- Moved pixel ClickGUI settings directly below the module opened with right-click.
+- Removed pixel ClickGUI text shadows.
+- Added a GUI editor for window opacity and Gold, Red, Mint, and Blue themes.
+
+
 ## dev-4.0-beta 2026-10-24
 
 - Reworked module browser with pixel-styled yellow and black category windows.

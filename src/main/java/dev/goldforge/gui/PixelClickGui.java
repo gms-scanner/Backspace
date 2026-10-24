@@ -10,139 +10,273 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.List;
 
-/** Compact, pixel edged category windows inspired by Minecraft's classic GUI scale. */
+/** Compact category windows with settings expanded directly below a module. */
 public final class PixelClickGui extends GuiScreen {
-    private static final int YELLOW=0xFFF4CE38, BLACK=0xE8141515, EDGE=0xFF544916;
-    private static final int W=136, GAP=7, ROW=17, TOP=30, HEADER=19, FOOT=27;
+    private static final int W = 136, GAP = 7, ROW = 17, TOP = 30, HEADER = 19, FOOT = 27;
     private final GuiScreen parent;
-    private final EnumMap<Category,Integer> scroll=new EnumMap<Category,Integer>(Category.class);
-    private int page,settingsScroll;
+    private final EnumMap<Category, Integer> scroll = new EnumMap<Category, Integer>(Category.class);
+    private int page, settingsScroll;
     private Module selected;
     private boolean binding;
-    public PixelClickGui(){this(null);}
-    public PixelClickGui(GuiScreen parent){this.parent=parent;}
 
-    private int visibleColumns(){return Math.max(1,(width-16+GAP)/(W+GAP));}
-    private int visibleRows(){return Math.max(1,(height-TOP-HEADER-FOOT-10)/ROW);}
-    private int maxPage(){return Math.max(0,Category.values().length-visibleColumns());}
-    private int left(int column){return 8+column*(W+GAP);}
-    private void box(int x,int y,int w,int h,int fill){Gui.drawRect(x,y,x+w,y+h,EDGE);Gui.drawRect(x+1,y+1,x+w-1,y+h-1,fill);}
-    private void text(String s,int x,int y,int color){fontRenderer.drawStringWithShadow(s,x,y,color);}
-    private String fit(String s,int max){return fontRenderer.trimStringToWidth(s,max);}
+    public PixelClickGui() { this(null); }
+    public PixelClickGui(GuiScreen parent) { this.parent = parent; }
 
-    @Override public void drawScreen(int mx,int my,float partial){
-        Gui.drawRect(0,0,width,height,0x63000000);
-        text("BACKSPACE",8,8,YELLOW);
-        text("<  CATEGORIES  >",Math.max(8,width-100),8,0xFFE0E0D0);
-        Category[] categories=Category.values();page=Math.min(page,maxPage());
-        for(int col=0;col<visibleColumns()&&page+col<categories.length;col++){
-            Category category=categories[page+col];int x=left(col);List<Module> modules=GoldForge.MODULES.in(category);
-            int shown=Math.min(modules.size(),visibleRows());int y=TOP;
-            box(x,y,W,HEADER,YELLOW);
-            text(category.name(),x+5,y+5,0xFF101010);
-            text(Integer.toString(modules.size()),x+W-18,y+5,0xFF101010);
-            int offset=Math.max(0,Math.min(scroll.containsKey(category)?scroll.get(category):0,Math.max(0,modules.size()-visibleRows())));
-            scroll.put(category,offset);
-            box(x,y+HEADER,W,shown*ROW+2,BLACK);
-            for(int i=0;i<shown;i++){
-                Module m=modules.get(offset+i);int rowY=y+HEADER+1+i*ROW;
-                boolean hover=mx>=x&&mx<x+W&&my>=rowY&&my<rowY+ROW;
-                if(hover)Gui.drawRect(x+1,rowY,x+W-1,rowY+ROW,0xAA6B591C);
-                if(m.enabled)Gui.drawRect(x+1,rowY,x+3,rowY+ROW,YELLOW);
-                text(fit(m.name,W-27),x+6,rowY+4,m.enabled?YELLOW:0xFFE5E5D6);
-                circle(x+W-12,rowY+8,m.enabled);
+    private int columns() { return Math.max(1, (width - 16 + GAP) / (W + GAP)); }
+    private int maxPage() { return Math.max(0, Category.values().length - columns()); }
+    private int left(int column) { return 8 + column * (W + GAP); }
+    private int bottom() { return height - FOOT; }
+    private int accent() {
+        switch (GuiPreferences.theme) {
+            case 1: return 0xFFE35D65;
+            case 2: return 0xFF6DE0BB;
+            case 3: return 0xFF75BBF7;
+            default: return 0xFFF4CE38;
+        }
+    }
+    private int edge() {
+        switch (GuiPreferences.theme) {
+            case 1: return 0xFF60383B;
+            case 2: return 0xFF31584F;
+            case 3: return 0xFF354C62;
+            default: return 0xFF544916;
+        }
+    }
+    private int surface() { return (GuiPreferences.pixelOpacity << 24) | 0x141515; }
+    private void box(int x, int y, int w, int h, int fill) {
+        if (h <= 0) return;
+        Gui.drawRect(x, y, x + w, y + h, edge());
+        if (w > 2 && h > 2) Gui.drawRect(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+    }
+    private void text(String value, int x, int y, int color) {
+        fontRenderer.drawString(value, x, y, color);
+    }
+    private String fit(String value, int max) { return fontRenderer.trimStringToWidth(value, max); }
+    private int offset(Category category) {
+        Integer value = scroll.get(category);
+        return value == null ? 0 : value;
+    }
+    private int settingsRows(int rowY) {
+        if (selected == null) return 0;
+        int available = bottom() - rowY - ROW;
+        int fixed = 71 + (special() ? 17 : 0);
+        return Math.max(0, Math.min(Math.min(5, selected.getSettings().size()), (available - fixed) / 18));
+    }
+    private int editorHeight(int rowY) {
+        int available = bottom() - rowY - ROW;
+        return Math.max(0, Math.min(available, 71 + settingsRows(rowY) * 18 + (special() ? 17 : 0)));
+    }
+
+    @Override public void drawScreen(int mx, int my, float partial) {
+        Gui.drawRect(0, 0, width, height, 0x63000000);
+        text("BACKSPACE", 8, 8, accent());
+        text("<  CATEGORIES  >", Math.max(8, width - 100), 8, 0xFFE0E0D0);
+        page = Math.min(page, maxPage());
+        Category[] categories = Category.values();
+        for (int col = 0; col < columns() && page + col < categories.length; col++)
+            drawColumn(categories[page + col], left(col), mx, my);
+        text("LMB TOGGLE  |  RMB SETTINGS  |  WHEEL SCROLL", 8, height - 13, 0xFFEAD993);
+        box(width - 182, height - 19, 84, 16, accent());
+        text("GUI EDITOR", width - 176, height - 15, 0xFF101010);
+        box(width - 91, height - 19, 84, 16, accent());
+        text("HUD EDITOR", width - 85, height - 15, 0xFF101010);
+    }
+
+    private void drawColumn(Category category, int x, int mx, int my) {
+        List<Module> modules = GoldForge.MODULES.in(category);
+        box(x, TOP, W, HEADER, accent());
+        text(category.name(), x + 5, TOP + 5, 0xFF101010);
+        text(Integer.toString(modules.size()), x + W - 18, TOP + 5, 0xFF101010);
+        box(x, TOP + HEADER, W, bottom() - TOP - HEADER, surface());
+        int start = Math.max(0, Math.min(offset(category), Math.max(0, modules.size() - 1)));
+        scroll.put(category, start);
+        int rowY = TOP + HEADER + 1;
+        for (int index = start; index < modules.size() && rowY + ROW <= bottom(); index++) {
+            Module module = modules.get(index);
+            boolean hover = mx >= x && mx < x + W && my >= rowY && my < rowY + ROW;
+            if (hover) Gui.drawRect(x + 1, rowY, x + W - 1, rowY + ROW, 0x806B591C);
+            if (module.enabled) Gui.drawRect(x + 1, rowY, x + 3, rowY + ROW, accent());
+            text(fit(module.name, W - 27), x + 6, rowY + 4, module.enabled ? accent() : 0xFFE5E5D6);
+            circle(x + W - 12, rowY + 8, module.enabled);
+            if (module == selected) {
+                int h = editorHeight(rowY);
+                if (h > 0) drawSettings(x, rowY + ROW, h);
+                rowY += h;
             }
-            if(modules.size()>shown)text((offset+1)+"-"+(offset+shown)+" / "+modules.size(),x+4,y+HEADER+shown*ROW+5,0xFFE9CF76);
+            rowY += ROW;
         }
-        text("LMB TOGGLE  |  RMB SETTINGS  |  WHEEL SCROLL  |  HUD EDITOR",8,height-13,0xFFEAD993);
-        box(width-91,height-19,84,16,YELLOW);text("HUD EDITOR",width-85,height-15,0xFF101010);
-        if(selected!=null)drawSettings(mx,my);
+        if (modules.size() > 0 && (start > 0 || rowY < TOP + HEADER + 1 + modules.size() * ROW))
+            text((start + 1) + "-" + Math.min(modules.size(), start + Math.max(1, (bottom() - TOP - HEADER) / ROW))
+                    + " / " + modules.size(), x + 4, bottom() + 3, accent());
     }
 
-    private void circle(int cx,int cy,boolean enabled){
-        // Eight by eight stepped ring reads as a pixel circle at the default GUI scale.
-        int[][] pixels={{-2,-4},{-1,-4},{0,-4},{1,-4},{-3,-3},{2,-3},{-4,-2},{3,-2},{-4,-1},{3,-1},{-4,0},{3,0},{-3,1},{2,1},{-2,2},{-1,2},{0,2},{1,2}};
-        for(int[] p:pixels)Gui.drawRect(cx+p[0],cy+p[1],cx+p[0]+1,cy+p[1]+1,YELLOW);
-        if(enabled)Gui.drawRect(cx-2,cy-2,cx+2,cy+1,YELLOW);
+    private void circle(int cx, int cy, boolean enabled) {
+        int[][] pixels = {{-2,-4},{-1,-4},{0,-4},{1,-4},{-3,-3},{2,-3},{-4,-2},{3,-2},
+                {-4,-1},{3,-1},{-4,0},{3,0},{-3,1},{2,1},{-2,2},{-1,2},{0,2},{1,2}};
+        for (int[] p : pixels) Gui.drawRect(cx + p[0], cy + p[1], cx + p[0] + 1, cy + p[1] + 1, accent());
+        if (enabled) Gui.drawRect(cx - 2, cy - 2, cx + 2, cy + 1, accent());
     }
 
-    private int panelX(){return Math.max(8,Math.min(width-171,width-177));}
-    private int settingsRows(){return Math.max(1,Math.min(9,(height-101)/20));}
-    private void drawSettings(int mx,int my){
-        int x=panelX(),y=TOP,w=166;List<ModuleSetting> options=selected.getSettings();
-        int rows=Math.min(settingsRows(),options.size());
-        box(x,y,w,HEADER+32+rows*20+29,BLACK);box(x,y,w,HEADER,YELLOW);
-        text(fit(selected.name,w-35),x+6,y+5,0xFF101010);text("X",x+w-12,y+5,0xFF101010);
-        text(fit(selected.description,w-11),x+5,y+24,0xFFC4C4B6);
-        box(x+5,y+37,w-10,16,selected.enabled?YELLOW:0xFF414039);
-        text(selected.enabled?"ENABLED":"DISABLED",x+11,y+41,selected.enabled?0xFF111111:0xFFF1F1E4);
-        settingsScroll=Math.max(0,Math.min(settingsScroll,Math.max(0,options.size()-settingsRows())));
-        for(int i=0;i<rows;i++){
-            ModuleSetting option=options.get(settingsScroll+i);int ry=y+57+i*20;
-            Gui.drawRect(x+5,ry,x+w-5,ry+18,0xFF272723);
-            text(fit(option.name,92),x+9,ry+5,0xFFE8E7D9);
-            text("-",x+w-49,ry+5,YELLOW);text(Integer.toString(option.get()),x+w-37,ry+5,YELLOW);text("+",x+w-13,ry+5,YELLOW);
+    private void drawSettings(int x, int y, int h) {
+        box(x + 3, y, W - 6, h, surface());
+        Gui.drawRect(x + 4, y + 1, x + 6, y + h - 1, accent());
+        text(fit(selected.description, W - 16), x + 9, y + 4, 0xFFE4E4D8);
+        int toggleY = y + 16;
+        Gui.drawRect(x + 9, toggleY, x + W - 9, toggleY + 14,
+                selected.enabled ? accent() : 0xFF494944);
+        text(selected.enabled ? "ENABLED" : "DISABLED", x + 13, toggleY + 3,
+                selected.enabled ? 0xFF101010 : 0xFFF1F1E4);
+        List<ModuleSetting> options = selected.getSettings();
+        int rows = settingsRows(y - ROW);
+        settingsScroll = Math.max(0, Math.min(settingsScroll, Math.max(0, options.size() - rows)));
+        for (int i = 0; i < rows; i++) {
+            ModuleSetting option = options.get(settingsScroll + i);
+            int sy = y + 34 + i * 18;
+            Gui.drawRect(x + 9, sy, x + W - 9, sy + 17, 0xD02A2A28);
+            text(fit(option.name, 64), x + 12, sy + 4, 0xFFE8E7D9);
+            text("-", x + W - 57, sy + 4, accent());
+            text(Integer.toString(option.get()), x + W - 43, sy + 4, accent());
+            text("+", x + W - 18, sy + 4, accent());
         }
-        int bottom=y+57+rows*20;
-        box(x+5,bottom,w-10,17,0xFF423C23);
-        text(binding?"PRESS A KEY...":"KEY: "+(selected.key==0?"NONE":Keyboard.getKeyName(selected.key)),x+9,bottom+4,YELLOW);
-        if(special())text("RIGHT CLICK: OPEN EDITOR",x+6,bottom+21,YELLOW);
+        int keyY = y + 34 + rows * 18;
+        if (keyY + 16 <= y + h) {
+            Gui.drawRect(x + 9, keyY, x + W - 9, keyY + 16, 0xD0423C23);
+            text(binding ? "PRESS A KEY..." : "KEY: " + (selected.key == 0 ? "NONE" :
+                    Keyboard.getKeyName(selected.key)), x + 12, keyY + 4, accent());
+        }
+        if (special() && keyY + 33 <= y + h)
+            text("OPEN MODULE EDITOR", x + 9, keyY + 21, accent());
     }
-    private boolean special(){return selected instanceof BlockESP||selected instanceof DIESP||selected instanceof AutoSign||selected instanceof Hands;}
-    private void openEditor(){
-        if(selected instanceof BlockESP)mc.displayGuiScreen(new BlockSelectGui(this,(BlockESP)selected));
-        else if(selected instanceof DIESP)mc.displayGuiScreen(new ItemSelectGui(this,(DIESP)selected));
-        else if(selected instanceof AutoSign)mc.displayGuiScreen(new SignTextGui(this,(AutoSign)selected));
-        else if(selected instanceof Hands)((Hands)selected).openEditor();
+
+    private boolean special() {
+        return selected instanceof BlockESP || selected instanceof DIESP
+                || selected instanceof AutoSign || selected instanceof Hands;
     }
-    @Override protected void mouseClicked(int mx,int my,int button)throws IOException{
-        if(mx>=width-91&&mx<width-7&&my>=height-19&&my<height-3){mc.displayGuiScreen(new HudEditor(this));return;}
-        if(selected!=null){
-            int x=panelX(),y=TOP,w=166;
-            if(mx>=x&&mx<x+w&&my>=y&&my<y+HEADER&&mx>x+w-25){selected=null;binding=false;return;}
-            if(mx>=x+5&&mx<x+w-5&&my>=y+37&&my<y+53){selected.toggle();return;}
-            List<ModuleSetting> options=selected.getSettings();int rows=Math.min(settingsRows(),options.size());
-            for(int i=0;i<rows;i++){int ry=y+57+i*20;if(mx<x+5||mx>=x+w-5||my<ry||my>=ry+18)continue;
-                if(mx>=x+w-55){options.get(settingsScroll+i).adjust(mx>=x+w-23?1:-1);return;}
+    private void openEditor() {
+        if (selected instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) selected));
+        else if (selected instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) selected));
+        else if (selected instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) selected));
+        else if (selected instanceof Hands) ((Hands) selected).openEditor();
+    }
+
+    private boolean settingsClick(int x, int y, int h, int mx, int my) {
+        if (mx < x + 3 || mx >= x + W - 3 || my < y || my >= y + h) return false;
+        if (mx >= x + 9 && mx < x + W - 9 && my >= y + 16 && my < y + 30) {
+            selected.toggle(); return true;
+        }
+        int rows = settingsRows(y - ROW);
+        for (int i = 0; i < rows; i++) {
+            int sy = y + 34 + i * 18;
+            if (my >= sy && my < sy + 17 && mx >= x + W - 62 && mx < x + W - 9) {
+                if (mx < x + W - 31) selected.getSettings().get(settingsScroll + i).adjust(-1);
+                else selected.getSettings().get(settingsScroll + i).adjust(1);
+                return true;
             }
-            int bottom=y+57+rows*20;
-            if(mx>=x+5&&mx<x+w-5&&my>=bottom&&my<bottom+17){binding=true;return;}
-            if(special()&&mx>=x&&mx<x+w&&my>=bottom+19&&my<bottom+38){openEditor();return;}
-            if(mx>=x&&mx<x+w&&my>=y){return;}
         }
-        Category[] categories=Category.values();
-        for(int col=0;col<visibleColumns()&&page+col<categories.length;col++){
-            int x=left(col);Category category=categories[page+col];List<Module> modules=GoldForge.MODULES.in(category);
-            int index=(scroll.containsKey(category)?scroll.get(category):0)+(my-TOP-HEADER-1)/ROW;
-            if(mx<x||mx>=x+W||my<TOP+HEADER+1||my>=TOP+HEADER+1+Math.min(visibleRows(),modules.size())*ROW||index<0||index>=modules.size())continue;
-            Module module=modules.get(index);
-            if(button==0)module.toggle();else if(button==1){selected=module;settingsScroll=0;binding=false;}
+        int keyY = y + 34 + rows * 18;
+        if (my >= keyY && my < keyY + 16) { binding = true; return true; }
+        if (special() && my >= keyY + 17 && my < keyY + 34) { openEditor(); return true; }
+        return true;
+    }
+
+    @Override protected void mouseClicked(int mx, int my, int button) throws IOException {
+        if (my >= height - 19 && my < height - 3) {
+            if (mx >= width - 182 && mx < width - 98) {
+                mc.displayGuiScreen(new PixelGuiEditor(this)); return;
+            }
+            if (mx >= width - 91 && mx < width - 7) {
+                mc.displayGuiScreen(new HudEditor(this)); return;
+            }
+        }
+        Category[] categories = Category.values();
+        for (int col = 0; col < columns() && page + col < categories.length; col++) {
+            int x = left(col);
+            if (mx < x || mx >= x + W) continue;
+            Category category = categories[page + col];
+            List<Module> modules = GoldForge.MODULES.in(category);
+            int rowY = TOP + HEADER + 1;
+            for (int index = Math.max(0, offset(category)); index < modules.size()
+                    && rowY + ROW <= bottom(); index++) {
+                Module module = modules.get(index);
+                if (my >= rowY && my < rowY + ROW) {
+                    if (button == 0) module.toggle();
+                    else if (button == 1) {
+                        if (selected == module) { selected = null; binding = false; }
+                        else {
+                            selected = module; settingsScroll = 0; binding = false;
+                            scroll.put(category, index); // Put the clicked row at the top so its editor fits.
+                        }
+                    }
+                    return;
+                }
+                if (module == selected) {
+                    int h = editorHeight(rowY);
+                    if (settingsClick(x, rowY + ROW, h, mx, my)) return;
+                    rowY += h;
+                }
+                rowY += ROW;
+            }
+        }
+        if (my < 23) {
+            if (mx < 105) page = Math.max(0, page - 1);
+            else if (mx > width - 110) page = Math.min(maxPage(), page + 1);
+        }
+    }
+
+    @Override public void handleMouseInput() throws IOException {
+        super.handleMouseInput();
+        int wheel = Mouse.getEventDWheel();
+        if (wheel == 0) return;
+        int mx = Mouse.getEventX() * width / mc.displayWidth;
+        int my = height - Mouse.getEventY() * height / mc.displayHeight - 1;
+        for (int col = 0; col < columns() && page + col < Category.values().length; col++) {
+            int x = left(col);
+            if (mx < x || mx >= x + W) continue;
+            Category category = Category.values()[page + col];
+            List<Module> modules = GoldForge.MODULES.in(category);
+            int rowY = TOP + HEADER + 1;
+            for (int i = Math.max(0, offset(category)); i < modules.size()
+                    && rowY + ROW <= bottom(); i++) {
+                if (modules.get(i) == selected) {
+                    int h = editorHeight(rowY);
+                    if (my >= rowY + ROW && my < rowY + ROW + h) {
+                        settingsScroll = Math.max(0, Math.min(
+                                Math.max(0, selected.getSettings().size() - settingsRows(rowY)),
+                                settingsScroll + (wheel < 0 ? 1 : -1)));
+                        return;
+                    }
+                    rowY += h;
+                }
+                rowY += ROW;
+            }
+            int max = Math.max(0, modules.size() - 1);
+            scroll.put(category, Math.max(0, Math.min(max,
+                    offset(category) + (wheel < 0 ? 2 : -2))));
             return;
         }
-        if(my<23){if(mx<105)page=Math.max(0,page-1);else if(mx>width-110)page=Math.min(maxPage(),page+1);}
+        page = Math.max(0, Math.min(maxPage(), page + (wheel < 0 ? 1 : -1)));
     }
-    @Override public void handleMouseInput()throws IOException{
-        super.handleMouseInput();int wheel=Mouse.getEventDWheel();if(wheel==0)return;
-        int mx=Mouse.getEventX()*width/mc.displayWidth,my=height-Mouse.getEventY()*height/mc.displayHeight-1;
-        if(selected!=null&&mx>=panelX()&&mx<panelX()+166){settingsScroll=Math.max(0,Math.min(Math.max(0,selected.getSettings().size()-settingsRows()),settingsScroll+(wheel<0?1:-1)));return;}
-        for(int col=0;col<visibleColumns()&&page+col<Category.values().length;col++)if(mx>=left(col)&&mx<left(col)+W){
-            Category cat=Category.values()[page+col];int max=Math.max(0,GoldForge.MODULES.in(cat).size()-visibleRows());
-            scroll.put(cat,Math.max(0,Math.min(max,(scroll.containsKey(cat)?scroll.get(cat):0)+(wheel<0?2:-2))));return;
+
+    @Override protected void keyTyped(char ch, int key) throws IOException {
+        if (binding && selected != null) {
+            selected.setKey(key == Keyboard.KEY_ESCAPE ? 0 : key);
+            binding = false; return;
         }
-        page=Math.max(0,Math.min(maxPage(),page+(wheel<0?1:-1)));
+        if (key == Keyboard.KEY_ESCAPE) {
+            if (selected != null) { selected = null; return; }
+            mc.displayGuiScreen(parent); return;
+        }
+        if (key == Keyboard.KEY_LEFT) page = Math.max(0, page - 1);
+        else if (key == Keyboard.KEY_RIGHT) page = Math.min(maxPage(), page + 1);
+        super.keyTyped(ch, key);
     }
-    @Override protected void keyTyped(char ch,int key)throws IOException{
-        if(binding&&selected!=null){selected.setKey(key==Keyboard.KEY_ESCAPE?0:key);binding=false;return;}
-        if(key==Keyboard.KEY_ESCAPE){if(selected!=null){selected=null;return;}mc.displayGuiScreen(parent);return;}
-        if(key==Keyboard.KEY_LEFT)page=Math.max(0,page-1);
-        else if(key==Keyboard.KEY_RIGHT)page=Math.min(maxPage(),page+1);
-        super.keyTyped(ch,key);
-    }
-    @Override public void onGuiClosed(){ConfigManager.save();}
-    @Override public boolean doesGuiPauseGame(){return false;}
-    @Override public void drawDefaultBackground(){}
+    @Override public void onGuiClosed() { ConfigManager.save(); }
+    @Override public boolean doesGuiPauseGame() { return false; }
+    @Override public void drawDefaultBackground() {}
 }
+
