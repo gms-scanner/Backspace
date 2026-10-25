@@ -403,6 +403,7 @@ public final class ModernClickGui extends OneUIScreen {
         if (overflow <= 0F) { text(vg, label, x, y, 11F, TEXT); return; }
         Marquee state = settingMarquees.get(setting);
         if (state == null) { state = new Marquee(); settingMarquees.put(setting, state); }
+        state.offset = Math.min(state.offset, overflow);
         if (!hovered) {
             state.phase = 0; state.timer = 0;
             state.offset *= (float) Math.exp(-11F * frameSeconds);
