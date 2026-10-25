@@ -21,9 +21,12 @@ import dev.goldforge.module.impl.ShaderFX;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
+import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -69,7 +72,15 @@ public final class ModernClickGui extends OneUIScreen {
     private String hoveredSettingName;
     private ModuleSetting draggingSetting;
     private float draggingTrackX, draggingTrackWidth;
+    private final IdentityHashMap<ModuleSetting, Marquee> settingMarquees = new IdentityHashMap<ModuleSetting, Marquee>();
+    private long lastFrame;
+    private float frameSeconds;
     private long openedAt;
+
+    private static final class Marquee {
+        float offset, timer;
+        int phase;
+    }
 
     public ModernClickGui() { this(null); }
 
@@ -88,6 +99,9 @@ public final class ModernClickGui extends OneUIScreen {
     @Override public boolean hasBackgroundBlur() { return true; }
 
     @Override public void draw(long vg, float partialTicks, InputHandler input) {
+        long now = System.nanoTime();
+        frameSeconds = lastFrame == 0 ? 0 : Math.min(0.05F, (now - lastFrame) / 1000000000F);
+        lastFrame = now;
         NanoVGHelper nvg = NanoVGHelper.INSTANCE;
         if (draggingSetting != null) {
             if (Mouse.isButtonDown(0))
@@ -362,10 +376,11 @@ public final class ModernClickGui extends OneUIScreen {
             float sy = settingsY + 16F + (i - settingsScroll) * 37F;
             ModuleSetting setting = settings.get(i);
             nvg.drawRoundedRect(vg, x + 14F, sy, w - 28F, 31F, CARD, 9F);
-            if (input.isAreaHovered(x + 14F, sy, w - 28F, 31F)) hoveredSettingName = setting.name;
+            boolean rowHovered = input.isAreaHovered(x + 14F, sy, w - 28F, 31F);
+            if (rowHovered) hoveredSettingName = setting.name;
             String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
                     ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
-            text(vg, trim(vg, rowLabel, w - 92F, 11F), x + 24F, sy + 4F, 11F, TEXT);
+            marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, w - 92F, rowHovered);
             textRight(vg, setting.formattedValue(), x + w - 24F, sy + 4F, 11F, YELLOW);
             float trackX = x + 24F, trackWidth = w - 48F;
             nvg.drawRect(vg, trackX, sy + 23F, trackWidth, 4F, STROKE);
@@ -380,6 +395,42 @@ public final class ModernClickGui extends OneUIScreen {
             }
         }
         popClip();
+    }
+
+    private void marqueeSetting(long vg, ModuleSetting setting, String label,
+                                float x, float y, float available, boolean hovered) {
+        float overflow = NanoVGHelper.INSTANCE.getTextWidth(vg, label, 11F, Fonts.REGULAR) - available;
+        if (overflow <= 0F) { text(vg, label, x, y, 11F, TEXT); return; }
+        Marquee state = settingMarquees.get(setting);
+        if (state == null) { state = new Marquee(); settingMarquees.put(setting, state); }
+        if (!hovered) {
+            state.phase = 0; state.timer = 0;
+            state.offset *= (float) Math.exp(-11F * frameSeconds);
+            if (state.offset < 0.5F) state.offset = 0;
+        } else if (state.phase == 0) {
+            state.timer += frameSeconds;
+            if (state.timer >= 0.45F) { state.phase = 1; state.timer = 0; }
+        } else if (state.phase == 1) {
+            state.offset += (overflow - state.offset) * (1F - (float) Math.exp(-2.8F * frameSeconds));
+            if (overflow - state.offset < 0.5F) { state.offset = overflow; state.phase = 2; state.timer = 0; }
+        } else if (state.phase == 2) {
+            state.timer += frameSeconds;
+            if (state.timer >= 0.8F) state.phase = 3;
+        } else {
+            state.offset *= (float) Math.exp(-5F * frameSeconds);
+            if (state.offset < 0.5F) { state.offset = 0; state.phase = 0; state.timer = 0; }
+        }
+        IntBuffer previous = BufferUtils.createIntBuffer(4);
+        GL11.glGetInteger(GL11.GL_SCISSOR_BOX, previous);
+        float scaleX = mc.displayWidth / Math.max(1F, width);
+        float scaleY = mc.displayHeight / Math.max(1F, height);
+        int left = Math.max(previous.get(0), Math.round(x * scaleX));
+        int bottom = Math.max(previous.get(1), Math.round((height - y - 12F) * scaleY));
+        int right = Math.min(previous.get(0) + previous.get(2), Math.round((x + available) * scaleX));
+        int top = Math.min(previous.get(1) + previous.get(3), Math.round((height - y) * scaleY));
+        GL11.glScissor(left, bottom, Math.max(0, right - left), Math.max(0, top - bottom));
+        text(vg, label, x - state.offset, y, 11F, TEXT);
+        GL11.glScissor(previous.get(0), previous.get(1), previous.get(2), previous.get(3));
     }
 
     private void action(long vg, InputHandler input, float x, float y, float w, String label, String value) {
