@@ -8,6 +8,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.DoubleConsumer;
+import java.util.function.DoubleSupplier;
 
 public abstract class Module {
     protected final Minecraft mc = Minecraft.getMinecraft();
@@ -64,5 +66,10 @@ public abstract class Module {
     protected final void addIntSetting(String name,int min,int max,int step,IntSupplier getter,IntConsumer setter) {
         settings.add(new ModuleSetting(name,min,max,step,getter,setter));
     }
+    protected final void addDoubleSetting(String name,double min,double max,double step,
+                                          DoubleSupplier getter,DoubleConsumer setter) {
+        settings.add(new ModuleSetting(name,min,max,step,getter,setter));
+    }
     public final List<ModuleSetting> getSettings() { return Collections.unmodifiableList(settings); }
 }
+

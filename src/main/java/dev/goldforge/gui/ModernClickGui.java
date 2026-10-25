@@ -156,7 +156,8 @@ public final class ModernClickGui extends OneUIScreen {
         float spaceX = titleX + nvg.getTextWidth(vg, "back", HEADER_TITLE_SIZE, Fonts.REGULAR);
         text(vg, "back", titleX, titleY, HEADER_TITLE_SIZE, TEXT);
         text(vg, "space", spaceX, titleY, HEADER_TITLE_SIZE, YELLOW);
-        text(vg, "DEV 3.5 BETA", titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
+        text(vg, GoldForge.VERSION.toUpperCase(java.util.Locale.ROOT).replace('-', ' '),
+                titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
     }
 
     private void drawHeader(long vg, InputHandler input, float x, float y, float width) {
@@ -550,3 +551,4 @@ public final class ModernClickGui extends OneUIScreen {
     private void textCentered(long vg, String value, float x, float y, float size, int color) { NanoVGHelper.INSTANCE.drawCenteredText(vg, value, x, y, color, size, Fonts.REGULAR); }
     private void textRight(long vg, String value, float right, float y, float size, int color) { text(vg, value, right - NanoVGHelper.INSTANCE.getTextWidth(vg, value, size, Fonts.REGULAR), y, size, color); }
 }
+

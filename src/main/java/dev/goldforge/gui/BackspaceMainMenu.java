@@ -95,7 +95,8 @@ public final class BackspaceMainMenu extends GuiScreen {
         }
         GlStateManager.popMatrix();
         if (height >= 300) {
-            label("DEV 3.5 BETA", left + 2, (int)(titleY + 34F), fadeAlpha(MUTED, menuFade), 9F);
+            label(GoldForge.VERSION.toUpperCase(java.util.Locale.ROOT).replace('-', ' '),
+                    left + 2, (int)(titleY + 34F), fadeAlpha(MUTED, menuFade), 9F);
             label("A CLEANER WAY TO PLAY", left + 2, (int)(titleY + 54F), fadeAlpha(0xFF777A83, menuFade), 9F);
         }
 
@@ -394,3 +395,4 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
     private static int fadeAlpha(int color, float alpha) { return (Math.max(0, Math.min(255, Math.round(((color >>> 24) & 255) * alpha))) << 24) | (color & 0x00FFFFFF); }
 }
+

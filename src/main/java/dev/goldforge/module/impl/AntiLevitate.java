@@ -13,7 +13,8 @@ public final class AntiLevitate extends Module {
         super("AntiLevitate","Detects Levitation and can cap local upward motion while it is active.",Category.MOVEMENT,0);
         addIntSetting("Mode (0 notify, 1 cap)",0,1,1,()->mode,v->mode=v);
         addIntSetting("Notifications (0/1)",0,1,1,()->notify,v->notify=v);
-        addIntSetting("Upward cap (tenths)",0,10,1,()->upwardCapTenths,v->upwardCapTenths=v);
+        addDoubleSetting("Upward cap",0,1,0.1,
+                ()->upwardCapTenths/10.0,v->upwardCapTenths=(int)Math.round(v*10));
     }
     @Override public void tick(){
         if(mc.player==null||mc.world==null){wasLevitation=false;return;}
@@ -25,3 +26,4 @@ public final class AntiLevitate extends Module {
     }
     @Override protected void onDisable(){wasLevitation=false;}
 }
+
