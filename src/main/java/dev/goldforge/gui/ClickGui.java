@@ -403,11 +403,17 @@ public final class ClickGui extends GuiScreen {
             int y = rowY + (index - settingsScroll) * rowStep;
             boolean hover = inside(mx, my, DETAIL_X + 12, y, DETAIL_W - 24, 21);
             roundedRect(DETAIL_X + 12, y, DETAIL_W - 24, 21, 5, hover ? CARD_HOVER : CARD);
-            text(clipped(setting.name, 73), DETAIL_X + 19, y + 5, TEXT);
-            text("-", DETAIL_X + 93, y + 4, MINT);
-            String value = Integer.toString(setting.get());
-            text(clipped(value, 22), DETAIL_X + 108, y + 5, 0xFFD6E1E3);
-            text("+", DETAIL_X + 131, y + 4, MINT);
+            if(setting.isToggle()){
+                text(clipped(setting.name, 91), DETAIL_X + 19, y + 5, TEXT);
+                text(setting.isEnabled()?"ON":"OFF",DETAIL_X+112,y+5,setting.isEnabled()?MINT:MUTED);
+                drawToggle(DETAIL_X+143,y+4,setting.isEnabled(),hover);
+            }else{
+                text(clipped(setting.name, 73), DETAIL_X + 19, y + 5, TEXT);
+                text("-", DETAIL_X + 93, y + 4, MINT);
+                String value = setting.formattedValue();
+                text(clipped(value, 22), DETAIL_X + 108, y + 5, 0xFFD6E1E3);
+                text("+", DETAIL_X + 131, y + 4, MINT);
+            }
         }
         drawScrollbar(DETAIL_X + DETAIL_W - 7, rowY, visibleRows * rowStep - 3, settings.size(), settingsScroll, visibleRows);
     }
@@ -577,6 +583,7 @@ public final class ClickGui extends GuiScreen {
                 for (int index = settingsScroll; index < Math.min(settings.size(), settingsScroll + 5); index++) {
                     int y = rowY + (index - settingsScroll) * rowStepSettings;
                     if (!inside(mx, my, DETAIL_X + 12, y, DETAIL_W - 24, 21)) continue;
+                    if(settings.get(index).isToggle()){settings.get(index).toggle();return;}
                     if (inside(mx, my, DETAIL_X + 86, y, 20, 21)) settings.get(index).adjust(-1);
                     else if (inside(mx, my, DETAIL_X + 124, y, 20, 21)) settings.get(index).adjust(1);
                     return;

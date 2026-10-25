@@ -107,9 +107,9 @@ public final class PixelClickGui extends GuiScreen {
             if (state.offset < 0.5F) state.offset = 0;
         } else if (state.phase == 0) {
             state.timer += dt;
-            if (state.timer >= 0.45F) { state.phase = 1; state.timer = 0; }
+            if (state.timer >= hoverDelay(value)) { state.phase = 1; state.timer = 0; }
         } else if (state.phase == 1) {
-            state.offset += (overflow - state.offset) * (1F - (float) Math.exp(-2.8F * dt));
+            state.offset += (overflow - state.offset) * (1F - (float) Math.exp((float)(-2.8F * dt / wordFactor(value))));
             if (overflow - state.offset < 0.5F) { state.offset = overflow; state.phase = 2; state.timer = 0; }
         } else if (state.phase == 2) {
             state.timer += dt;
@@ -122,6 +122,9 @@ public final class PixelClickGui extends GuiScreen {
         text(value, x - Math.round(state.offset), y, color);
         GL11.glScissor(old[0], old[1], old[2], old[3]);
     }
+    private static int words(String value) { String trimmed=value.trim();return trimmed.isEmpty()?1:trimmed.split("\\s+").length; }
+    private static float wordFactor(String value) { return Math.min(5F,1F+Math.max(0,words(value)-1)*.22F); }
+    private static float hoverDelay(String value) { return Math.min(1.8F,.45F+Math.max(0,words(value)-1)*.12F); }
     private int scroll(Category category) {
         Integer value = scroll.get(category);
         return value == null ? 0 : value;
@@ -260,19 +263,25 @@ public final class PixelClickGui extends GuiScreen {
             sliderHover.put(option, glow);
             String value = option.formattedValue();
             int valueWidth = fontRenderer.getStringWidth(value);
-            int nameWidth = Math.max(18, W - 33 - valueWidth);
+            boolean toggle=option.isToggle();
+            int nameWidth = Math.max(18, W - (toggle?66:33) - valueWidth);
             marquee(option, nameMarquees, option.name, x + 12, sy + 1, nameWidth,
                     hover, 0xFFE8E7D9);
-            text(value, x + W - 12 - valueWidth, sy + 1, accent());
-            int trackX = x + 12, trackWidth = W - 24;
-            Gui.drawRect(trackX, sy + 13, trackX + trackWidth, sy + 17, 0xFF292923);
-            int filled = Math.round(trackWidth * (float) option.fraction());
-            Gui.drawRect(trackX, sy + 13, trackX + filled, sy + 17, accent());
-            int knob = trackX + filled;
-            Gui.drawRect(Math.max(trackX, knob - 2), sy + 11,
-                    Math.min(trackX + trackWidth, knob + 2), sy + 18, accent());
-            if (glow > 0.02F) Gui.drawRect(trackX, sy + 10, trackX + trackWidth, sy + 11,
-                    (Math.round(glow * 120F) << 24) | (accent() & 0xFFFFFF));
+            if(toggle){
+                int switchX=x+W-45;Gui.drawRect(switchX,sy+3,switchX+31,sy+14,option.isEnabled()?accent():0xFF41413A);
+                Gui.drawRect(switchX+(option.isEnabled()?19:3),sy+5,switchX+(option.isEnabled()?27:11),sy+12,0xFFFFF8D0);
+                text(option.isEnabled()?"ON":"OFF",x+W-68,sy+2,option.isEnabled()?accent():0xFFB9B9A9);
+            }else{
+                text(value, x + W - 12 - valueWidth, sy + 1, accent());
+                int trackX = x + 12, trackWidth = W - 24;
+                Gui.drawRect(trackX, sy + 13, trackX + trackWidth, sy + 17, 0xFF292923);
+                int filled = Math.round(trackWidth * (float) option.fraction());
+                Gui.drawRect(trackX, sy + 13, trackX + filled, sy + 17, accent());
+                int knob = trackX + filled;
+                Gui.drawRect(Math.max(trackX, knob - 2), sy + 11, Math.min(trackX + trackWidth, knob + 2), sy + 18, accent());
+                if (glow > 0.02F) Gui.drawRect(trackX, sy + 10, trackX + trackWidth, sy + 11,
+                        (Math.round(glow * 120F) << 24) | (accent() & 0xFFFFFF));
+            }
         }
         int keyY = y + 34 + options.size() * 18;
         Gui.drawRect(x + 9, keyY, x + W - 9, keyY + 16, 0xA0423C23);
@@ -299,8 +308,10 @@ public final class PixelClickGui extends GuiScreen {
         List<ModuleSetting> options = module.getSettings();
         for (int i = 0; i < options.size(); i++) {
             int sy = y + 34 + i * 18;
-            if (my >= sy + 10 && my < sy + 18 && mx >= x + 12 && mx <= x + W - 12) {
-                activeSlider = options.get(i);
+            ModuleSetting option=options.get(i);
+            if(option.isToggle()&&my>=sy&&my<sy+18&&mx>=x+9&&mx<x+W-9){option.toggle();return;}
+            if (!option.isToggle() && my >= sy + 10 && my < sy + 18 && mx >= x + 12 && mx <= x + W - 12) {
+                activeSlider = option;
                 activeSliderX = x + 12;
                 activeSliderWidth = W - 24;
                 activeSlider.setFraction((mx - activeSliderX) / (double) activeSliderWidth);
