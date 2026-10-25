@@ -20,6 +20,7 @@ import dev.goldforge.module.impl.Phase;
 import dev.goldforge.module.impl.ShaderFX;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
@@ -66,6 +67,8 @@ public final class ModernClickGui extends OneUIScreen {
     private int settingsScroll;
     private boolean inspectorHovered;
     private String hoveredSettingName;
+    private ModuleSetting draggingSetting;
+    private float draggingTrackX, draggingTrackWidth;
     private long openedAt;
 
     public ModernClickGui() { this(null); }
@@ -86,6 +89,12 @@ public final class ModernClickGui extends OneUIScreen {
 
     @Override public void draw(long vg, float partialTicks, InputHandler input) {
         NanoVGHelper nvg = NanoVGHelper.INSTANCE;
+        if (draggingSetting != null) {
+            if (Mouse.isButtonDown(0))
+                draggingSetting.setFraction((Mouse.getX() * width / (double) mc.displayWidth
+                        - draggingTrackX) / draggingTrackWidth);
+            else { ConfigManager.save(); draggingSetting = null; }
+        }
         float alpha = Math.min(1F, (System.currentTimeMillis() - openedAt) / 170F);
         // Keep the browser substantial without turning it into a full-screen
         // overlay at lower Minecraft GUI scales.
@@ -356,12 +365,19 @@ public final class ModernClickGui extends OneUIScreen {
             if (input.isAreaHovered(x + 14F, sy, w - 28F, 31F)) hoveredSettingName = setting.name;
             String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
                     ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
-            text(vg, trim(vg, rowLabel, w - 112F, 11F), x + 24F, sy + 10F, 11F, TEXT);
-            text(vg, "−", x + w - 80F, sy + 7F, 16F, YELLOW);
-            textRight(vg, Integer.toString(setting.get()), x + w - 42F, sy + 10F, 11F, TEXT);
-            text(vg, "+", x + w - 30F, sy + 7F, 16F, YELLOW);
-            if (input.isAreaClicked(x + w - 89F, sy, 25F, 31F)) setting.adjust(-1);
-            else if (input.isAreaClicked(x + w - 34F, sy, 25F, 31F)) setting.adjust(1);
+            text(vg, trim(vg, rowLabel, w - 92F, 11F), x + 24F, sy + 4F, 11F, TEXT);
+            textRight(vg, setting.formattedValue(), x + w - 24F, sy + 4F, 11F, YELLOW);
+            float trackX = x + 24F, trackWidth = w - 48F;
+            nvg.drawRect(vg, trackX, sy + 23F, trackWidth, 4F, STROKE);
+            nvg.drawRect(vg, trackX, sy + 23F, trackWidth * (float) setting.fraction(), 4F, YELLOW);
+            if (input.isAreaHovered(trackX, sy + 20F, trackWidth, 11F))
+                nvg.drawRect(vg, trackX, sy + 20F, trackWidth, 1F, YELLOW_DARK);
+            if (input.isAreaClicked(trackX, sy + 18F, trackWidth, 13F)) {
+                draggingSetting = setting;
+                draggingTrackX = trackX;
+                draggingTrackWidth = trackWidth;
+                setting.setFraction((Mouse.getX() * width / (double) mc.displayWidth - trackX) / trackWidth);
+            }
         }
         popClip();
     }
