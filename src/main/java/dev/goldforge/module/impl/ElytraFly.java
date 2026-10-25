@@ -26,11 +26,16 @@ public final class ElytraFly extends Module {
     public ElytraFly() {
         super("ElytraFly", "Configurable Elytra steering and packet movement profiles.", Category.MOVEMENT, 0);
         addIntSetting("Mode (0 Control, 1 Packet, 2 Both)", 0, 2, 1, () -> mode, v -> mode = v);
-        addIntSetting("Horizontal speed (x100)", 20, 500, 5, () -> horizontalSpeed, v -> horizontalSpeed = v);
-        addIntSetting("Steering (x1000)", 1, 200, 1, () -> steering, v -> steering = v);
-        addIntSetting("Vertical input speed (x100)", 5, 200, 5, () -> verticalSpeed, v -> verticalSpeed = v);
-        addIntSetting("Packet multiplier (x100)", 100, 400, 5, () -> packetMultiplier, v -> packetMultiplier = v);
-        addIntSetting("Packet pulse (x10000)", 0, 2000, 25, () -> packetPulse, v -> packetPulse = v);
+        addDoubleSetting("Horizontal speed", 0.2, 5, 0.05,
+                () -> horizontalSpeed / 100.0, v -> horizontalSpeed = (int) Math.round(v * 100));
+        addDoubleSetting("Steering", 0.001, 0.2, 0.001,
+                () -> steering / 1000.0, v -> steering = (int) Math.round(v * 1000));
+        addDoubleSetting("Vertical speed", 0.05, 2, 0.05,
+                () -> verticalSpeed / 100.0, v -> verticalSpeed = (int) Math.round(v * 100));
+        addDoubleSetting("Packet multiplier", 1, 4, 0.05,
+                () -> packetMultiplier / 100.0, v -> packetMultiplier = (int) Math.round(v * 100));
+        addDoubleSetting("Packet pulse", 0, 0.2, 0.0025,
+                () -> packetPulse / 10000.0, v -> packetPulse = (int) Math.round(v * 10000));
         addIntSetting("Spoof onGround (0/1)", 0, 1, 1, () -> spoofGround, v -> spoofGround = v);
     }
 
@@ -105,3 +110,4 @@ public final class ElytraFly extends Module {
         return Math.max(min, Math.min(max, value));
     }
 }
+

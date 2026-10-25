@@ -7,7 +7,7 @@ import java.util.Properties;
 public final class GuiPreferences {
     public static int layout = 1;
     public static int theme = 0; // gold, red, mint, blue
-    public static int pixelOpacity = 160;
+    public static int pixelTransparency = 37; // 0 is opaque; 100 reveals the world
     public static final int[] panelX = new int[Category.values().length];
     public static final int[] panelY = new int[Category.values().length];
     public static final boolean[] collapsed = new boolean[Category.values().length];
@@ -17,7 +17,9 @@ public final class GuiPreferences {
     public static void load(Properties values) {
         layout = clamp(read(values, "gui.layout", layout), 0, 1);
         theme = clamp(read(values, "gui.theme", theme), 0, 3);
-        pixelOpacity = clamp(read(values, "gui.pixel.opacity", pixelOpacity), 32, 255);
+        pixelTransparency = values.containsKey("gui.pixel.transparency")
+                ? clamp(read(values, "gui.pixel.transparency", pixelTransparency), 0, 100)
+                : clamp(100 - Math.round(read(values, "gui.pixel.opacity", 160) * 100F / 255F), 0, 100);
         for (Category category : Category.values()) {
             String prefix = "gui.panel." + category.name().toLowerCase(java.util.Locale.ROOT) + ".";
             int index = category.ordinal();
@@ -29,7 +31,7 @@ public final class GuiPreferences {
     public static void save(Properties values) {
         values.setProperty("gui.layout", Integer.toString(clamp(layout, 0, 1)));
         values.setProperty("gui.theme", Integer.toString(clamp(theme, 0, 3)));
-        values.setProperty("gui.pixel.opacity", Integer.toString(clamp(pixelOpacity, 32, 255)));
+        values.setProperty("gui.pixel.transparency", Integer.toString(clamp(pixelTransparency, 0, 100)));
         for (Category category : Category.values()) {
             String prefix = "gui.panel." + category.name().toLowerCase(java.util.Locale.ROOT) + ".";
             int index = category.ordinal();

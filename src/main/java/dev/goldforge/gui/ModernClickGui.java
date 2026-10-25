@@ -20,9 +20,13 @@ import dev.goldforge.module.impl.Phase;
 import dev.goldforge.module.impl.ShaderFX;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
+import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 
@@ -66,7 +70,17 @@ public final class ModernClickGui extends OneUIScreen {
     private int settingsScroll;
     private boolean inspectorHovered;
     private String hoveredSettingName;
+    private ModuleSetting draggingSetting;
+    private float draggingTrackX, draggingTrackWidth;
+    private final IdentityHashMap<ModuleSetting, Marquee> settingMarquees = new IdentityHashMap<ModuleSetting, Marquee>();
+    private long lastFrame;
+    private float frameSeconds;
     private long openedAt;
+
+    private static final class Marquee {
+        float offset, timer;
+        int phase;
+    }
 
     public ModernClickGui() { this(null); }
 
@@ -85,7 +99,16 @@ public final class ModernClickGui extends OneUIScreen {
     @Override public boolean hasBackgroundBlur() { return true; }
 
     @Override public void draw(long vg, float partialTicks, InputHandler input) {
+        long now = System.nanoTime();
+        frameSeconds = lastFrame == 0 ? 0 : Math.min(0.05F, (now - lastFrame) / 1000000000F);
+        lastFrame = now;
         NanoVGHelper nvg = NanoVGHelper.INSTANCE;
+        if (draggingSetting != null) {
+            if (Mouse.isButtonDown(0))
+                draggingSetting.setFraction((Mouse.getX() * width / (double) mc.displayWidth
+                        - draggingTrackX) / draggingTrackWidth);
+            else { ConfigManager.save(); draggingSetting = null; }
+        }
         float alpha = Math.min(1F, (System.currentTimeMillis() - openedAt) / 170F);
         // Keep the browser substantial without turning it into a full-screen
         // overlay at lower Minecraft GUI scales.
@@ -156,7 +179,8 @@ public final class ModernClickGui extends OneUIScreen {
         float spaceX = titleX + nvg.getTextWidth(vg, "back", HEADER_TITLE_SIZE, Fonts.REGULAR);
         text(vg, "back", titleX, titleY, HEADER_TITLE_SIZE, TEXT);
         text(vg, "space", spaceX, titleY, HEADER_TITLE_SIZE, YELLOW);
-        text(vg, "DEV 3.5 BETA", titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
+        text(vg, GoldForge.VERSION.toUpperCase(java.util.Locale.ROOT).replace('-', ' '),
+                titleX, titleY + HEADER_SUBTITLE_GAP, HEADER_SUBTITLE_SIZE, MUTED);
     }
 
     private void drawHeader(long vg, InputHandler input, float x, float y, float width) {
@@ -352,17 +376,62 @@ public final class ModernClickGui extends OneUIScreen {
             float sy = settingsY + 16F + (i - settingsScroll) * 37F;
             ModuleSetting setting = settings.get(i);
             nvg.drawRoundedRect(vg, x + 14F, sy, w - 28F, 31F, CARD, 9F);
-            if (input.isAreaHovered(x + 14F, sy, w - 28F, 31F)) hoveredSettingName = setting.name;
+            boolean rowHovered = input.isAreaHovered(x + 14F, sy, w - 28F, 31F);
+            if (rowHovered) hoveredSettingName = setting.name;
             String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
                     ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
-            text(vg, trim(vg, rowLabel, w - 112F, 11F), x + 24F, sy + 10F, 11F, TEXT);
-            text(vg, "−", x + w - 80F, sy + 7F, 16F, YELLOW);
-            textRight(vg, Integer.toString(setting.get()), x + w - 42F, sy + 10F, 11F, TEXT);
-            text(vg, "+", x + w - 30F, sy + 7F, 16F, YELLOW);
-            if (input.isAreaClicked(x + w - 89F, sy, 25F, 31F)) setting.adjust(-1);
-            else if (input.isAreaClicked(x + w - 34F, sy, 25F, 31F)) setting.adjust(1);
+            marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, w - 92F, rowHovered);
+            textRight(vg, setting.formattedValue(), x + w - 24F, sy + 4F, 11F, YELLOW);
+            float trackX = x + 24F, trackWidth = w - 48F;
+            nvg.drawRect(vg, trackX, sy + 23F, trackWidth, 4F, STROKE);
+            nvg.drawRect(vg, trackX, sy + 23F, trackWidth * (float) setting.fraction(), 4F, YELLOW);
+            if (input.isAreaHovered(trackX, sy + 20F, trackWidth, 11F))
+                nvg.drawRect(vg, trackX, sy + 20F, trackWidth, 1F, YELLOW_DARK);
+            if (input.isAreaClicked(trackX, sy + 18F, trackWidth, 13F)) {
+                draggingSetting = setting;
+                draggingTrackX = trackX;
+                draggingTrackWidth = trackWidth;
+                setting.setFraction((Mouse.getX() * width / (double) mc.displayWidth - trackX) / trackWidth);
+            }
         }
         popClip();
+    }
+
+    private void marqueeSetting(long vg, ModuleSetting setting, String label,
+                                float x, float y, float available, boolean hovered) {
+        float overflow = NanoVGHelper.INSTANCE.getTextWidth(vg, label, 11F, Fonts.REGULAR) - available;
+        if (overflow <= 0F) { text(vg, label, x, y, 11F, TEXT); return; }
+        Marquee state = settingMarquees.get(setting);
+        if (state == null) { state = new Marquee(); settingMarquees.put(setting, state); }
+        state.offset = Math.min(state.offset, overflow);
+        if (!hovered) {
+            state.phase = 0; state.timer = 0;
+            state.offset *= (float) Math.exp(-11F * frameSeconds);
+            if (state.offset < 0.5F) state.offset = 0;
+        } else if (state.phase == 0) {
+            state.timer += frameSeconds;
+            if (state.timer >= 0.45F) { state.phase = 1; state.timer = 0; }
+        } else if (state.phase == 1) {
+            state.offset += (overflow - state.offset) * (1F - (float) Math.exp(-2.8F * frameSeconds));
+            if (overflow - state.offset < 0.5F) { state.offset = overflow; state.phase = 2; state.timer = 0; }
+        } else if (state.phase == 2) {
+            state.timer += frameSeconds;
+            if (state.timer >= 0.8F) state.phase = 3;
+        } else {
+            state.offset *= (float) Math.exp(-5F * frameSeconds);
+            if (state.offset < 0.5F) { state.offset = 0; state.phase = 0; state.timer = 0; }
+        }
+        IntBuffer previous = BufferUtils.createIntBuffer(4);
+        GL11.glGetInteger(GL11.GL_SCISSOR_BOX, previous);
+        float scaleX = mc.displayWidth / Math.max(1F, width);
+        float scaleY = mc.displayHeight / Math.max(1F, height);
+        int left = Math.max(previous.get(0), Math.round(x * scaleX));
+        int bottom = Math.max(previous.get(1), Math.round((height - y - 12F) * scaleY));
+        int right = Math.min(previous.get(0) + previous.get(2), Math.round((x + available) * scaleX));
+        int top = Math.min(previous.get(1) + previous.get(3), Math.round((height - y) * scaleY));
+        GL11.glScissor(left, bottom, Math.max(0, right - left), Math.max(0, top - bottom));
+        text(vg, label, x - state.offset, y, 11F, TEXT);
+        GL11.glScissor(previous.get(0), previous.get(1), previous.get(2), previous.get(3));
     }
 
     private void action(long vg, InputHandler input, float x, float y, float w, String label, String value) {
@@ -550,3 +619,4 @@ public final class ModernClickGui extends OneUIScreen {
     private void textCentered(long vg, String value, float x, float y, float size, int color) { NanoVGHelper.INSTANCE.drawCenteredText(vg, value, x, y, color, size, Fonts.REGULAR); }
     private void textRight(long vg, String value, float right, float y, float size, int color) { text(vg, value, right - NanoVGHelper.INSTANCE.getTextWidth(vg, value, size, Fonts.REGULAR), y, size, color); }
 }
+

@@ -41,6 +41,8 @@ public final class ConfigManager {
                 String key="module."+module.name+"."+field.getName();
                 try{
                     if(field.getType()==int.class&&VALUES.containsKey(key))field.setInt(module,parseInt(key,field.getInt(module)));
+                    else if(field.getType()==float.class&&VALUES.containsKey(key))field.setFloat(module,parseFloat(key,field.getFloat(module)));
+                    else if(field.getType()==double.class&&VALUES.containsKey(key))field.setDouble(module,parseDouble(key,field.getDouble(module)));
                     else if(field.getType()==boolean.class&&VALUES.containsKey(key))field.setBoolean(module,Boolean.parseBoolean(VALUES.getProperty(key)));
                     else if(field.getType()==String.class&&VALUES.containsKey(key))field.set(module,VALUES.getProperty(key,""));
                 }catch(IllegalAccessException ignored){}
@@ -74,6 +76,8 @@ public final class ConfigManager {
                 try{
                     String key="module."+module.name+"."+field.getName();
                     if(field.getType()==int.class)VALUES.setProperty(key,Integer.toString(field.getInt(module)));
+                    else if(field.getType()==float.class)VALUES.setProperty(key,Float.toString(field.getFloat(module)));
+                    else if(field.getType()==double.class)VALUES.setProperty(key,Double.toString(field.getDouble(module)));
                     else if(field.getType()==boolean.class)VALUES.setProperty(key,Boolean.toString(field.getBoolean(module)));
                     else if(field.getType()==String.class)VALUES.setProperty(key,(String)field.get(module));
                 }catch(IllegalAccessException ignored){}
@@ -132,5 +136,8 @@ public final class ConfigManager {
     private static String serverProfileName(){net.minecraft.client.multiplayer.ServerData server=Minecraft.getMinecraft().getCurrentServerData();if(server==null||server.serverIP==null||server.serverIP.trim().isEmpty())return null;return "server-"+String.format(java.util.Locale.ROOT,"%08x",server.serverIP.trim().toLowerCase(java.util.Locale.ROOT).hashCode());}
     private static int getInt(String key,int fallback){return parseInt(key,fallback);}
     private static int parseInt(String key,int fallback){try{return Integer.parseInt(VALUES.getProperty(key));}catch(Exception ignored){return fallback;}}
+    private static float parseFloat(String key,float fallback){try{return Float.parseFloat(VALUES.getProperty(key));}catch(Exception ignored){return fallback;}}
+    private static double parseDouble(String key,double fallback){try{return Double.parseDouble(VALUES.getProperty(key));}catch(Exception ignored){return fallback;}}
     private static boolean getBoolean(String key,boolean fallback){String value=VALUES.getProperty(key);return value==null?fallback:Boolean.parseBoolean(value);}
 }
+
