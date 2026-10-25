@@ -1,5 +1,10 @@
 # Changelog
 
+## dev-4.0.4-beta 2026-10-25
+
+- Fixed the right-click ClickGUI crash: LWJGL 2 requires a 16-element buffer for scissor-state reads in both GUI renderers.
+
+
 ## dev-4.0.3-beta 2026-10-25
 
 - Corrected pixel window transparency with a full 0–100% range and live GUI editor preview.

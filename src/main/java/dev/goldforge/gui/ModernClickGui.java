@@ -421,7 +421,7 @@ public final class ModernClickGui extends OneUIScreen {
             state.offset *= (float) Math.exp(-5F * frameSeconds);
             if (state.offset < 0.5F) { state.offset = 0; state.phase = 0; state.timer = 0; }
         }
-        IntBuffer previous = BufferUtils.createIntBuffer(4);
+        IntBuffer previous = BufferUtils.createIntBuffer(16);
         GL11.glGetInteger(GL11.GL_SCISSOR_BOX, previous);
         float scaleX = mc.displayWidth / Math.max(1F, width);
         float scaleY = mc.displayHeight / Math.max(1F, height);

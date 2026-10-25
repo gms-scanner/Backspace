@@ -82,7 +82,7 @@ public final class PixelClickGui extends GuiScreen {
         fontRenderer.drawString(value, x, y, color);
     }
     private int[] clipText(int x, int y, int w, int h) {
-        IntBuffer old = BufferUtils.createIntBuffer(4);
+        IntBuffer old = BufferUtils.createIntBuffer(16);
         GL11.glGetInteger(GL11.GL_SCISSOR_BOX, old);
         int scale = new ScaledResolution(mc).getScaleFactor();
         int lx = x * scale, ly = mc.displayHeight - (y + h) * scale;
