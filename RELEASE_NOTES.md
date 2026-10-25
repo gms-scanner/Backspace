@@ -1,16 +1,13 @@
-# Backspace dev-4.0.3-beta
+# Backspace dev-4.0.4-beta
 
-This prerelease fixes ClickGUI transparency, long labels, and numeric setting controls.
+This hotfix resolves the crash when expanding module settings with right-click.
 
-## Changes
+## Fix
 
-- Set panel transparency from 0% (opaque) to 100% (fully clear). The background alpha is independent of text, border, and control colors. The GUI Editor now previews the change against the live ClickGUI.
-- Hover long module names, descriptions, or setting labels to scroll them horizontally after a short delay. Text stays clipped within its row.
-- Drag or click sliders to change numeric settings. Values snap to their configured steps, including decimal settings, and save to the client configuration.
-- Main menu and both ClickGUI views display the current version.
+- Allocate the 16-element buffer required by LWJGL 2 when reading OpenGL scissor state in the pixel and modern ClickGUI renderers. The expanded settings, transparency, marquee text, and sliders from dev-4.0.3-beta are preserved.
 
 ## Install
 
-1. Download `backspace-dev-4.0.3-beta.jar` from this release and the required [`OneConfig-1.12.2-forge.jar`](https://github.com/gms-scanner/Backspace/releases/download/dev-3.5-beta/OneConfig-1.12.2-forge.jar) dependency.
-2. Put both in the Minecraft 1.12.2 Forge `mods` folder.
+1. Download `backspace-dev-4.0.4-beta.jar` from this release and the required [`OneConfig-1.12.2-forge.jar`](https://github.com/gms-scanner/Backspace/releases/download/dev-3.5-beta/OneConfig-1.12.2-forge.jar) dependency.
+2. Put both in the Minecraft 1.12.2 Forge `mods` folder, replacing the previous Backspace JAR.
 3. Launch Forge 14.23.5.2859 with Java 8. Press Right Shift or run `/backspace`.
