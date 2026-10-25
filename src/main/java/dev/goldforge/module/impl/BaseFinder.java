@@ -2,6 +2,8 @@ package dev.goldforge.module.impl;
 
 import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
+import dev.goldforge.discovery.ChunkScanService;
+import dev.goldforge.discovery.DiscoveryDatabase;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.tileentity.*;
@@ -19,8 +21,8 @@ import java.util.List;
 import java.util.Map;
 
 /** Flags loaded client chunks containing clusters of storage and utility tile entities. */
-public final class BaseFinder extends Module {
-    public int range=256,scanIntervalTicks=10,evidenceThreshold=4,cacheSeconds=300;
+public final class BaseFinder extends Module implements ChunkScanService.Listener {
+    public int range=256,scanIntervalTicks=10,evidenceThreshold=4,cacheSeconds=300,minConfidence=55,autoWaypoint=1,notify=1;
     private static final int MAX_CANDIDATES=256;
     private final LinkedHashMap<Long,Signal> candidates=new LinkedHashMap<Long,Signal>();
     private int ticks;
@@ -31,6 +33,9 @@ public final class BaseFinder extends Module {
         addIntSetting("Scan interval ticks",1,40,1,()->scanIntervalTicks,v->scanIntervalTicks=v);
         addIntSetting("Evidence threshold",2,12,1,()->evidenceThreshold,v->evidenceThreshold=v);
         addIntSetting("Remember signal seconds",30,900,30,()->cacheSeconds,v->cacheSeconds=v);
+        addIntSetting("Minimum confidence",0,100,5,()->minConfidence,v->minConfidence=v);
+        addIntSetting("Auto waypoint",0,1,1,()->autoWaypoint,v->autoWaypoint=v);
+        addIntSetting("Notify",0,1,1,()->notify,v->notify=v);
     }
 
     @Override protected void onEnable(){candidates.clear();ticks=0;}
@@ -41,41 +46,39 @@ public final class BaseFinder extends Module {
         if(mc.player==null||mc.world==null){candidates.clear();return;}
         ticks++;
         long now=System.currentTimeMillis();
-        if(ticks%Math.max(1,scanIntervalTicks)==0)scanLoadedTileEntities(now);
         long cutoff=now-cacheSeconds*1000L;
         Iterator<Map.Entry<Long,Signal>> iterator=candidates.entrySet().iterator();
         while(iterator.hasNext())if(iterator.next().getValue().lastSeen<cutoff)iterator.remove();
     }
 
-    private void scanLoadedTileEntities(long now){
-        Map<Long,WorkingSignal> found=new LinkedHashMap<Long,WorkingSignal>();
-        double rangeSq=range*(double)range;
-        for(TileEntity tile:mc.world.loadedTileEntityList){
-            if(tile==null||tile.isInvalid())continue;
-            BlockPos pos=tile.getPos();
-            if(pos.distanceSq(mc.player.posX,mc.player.posY,mc.player.posZ)>rangeSq)continue;
-            int weight=weight(tile);
-            if(weight==0)continue;
-            int cx=pos.getX()>>4,cz=pos.getZ()>>4;
-            long key=chunkKey(cx,cz);
-            WorkingSignal signal=found.get(key);
-            if(signal==null){signal=new WorkingSignal(cx,cz);found.put(key,signal);}
-            signal.score+=weight;signal.count++;
-            if(signal.examples.size()<3)signal.examples.add(pos);
-        }
-        for(Map.Entry<Long,WorkingSignal> entry:found.entrySet()){
-            WorkingSignal observed=entry.getValue();
-            if(observed.score<evidenceThreshold)continue;
-            candidates.put(entry.getKey(),new Signal(observed.chunkX,observed.chunkZ,observed.score,observed.count,now,observed.examples));
-        }
+    @Override public void scanned(ChunkScanService.Snapshot snapshot){
+        if(!enabled||isSuspended()||mc.player==null||mc.world==null)return;
+        int x=snapshot.chunkX*16+8,z=snapshot.chunkZ*16+8;
+        double dx=x-mc.player.posX,dz=z-mc.player.posZ;if(dx*dx+dz*dz>range*(double)range)return;
+        int storage=Math.max(snapshot.storage.size(),snapshot.count("minecraft:chest")+snapshot.count("minecraft:trapped_chest")
+                +snapshot.count("minecraft:ender_chest")+snapshot.count("minecraft:hopper"));
+        int utility=snapshot.tileCount("TileEntityFurnace")+snapshot.tileCount("TileEntityHopper")
+                +snapshot.tileCount("TileEntityBrewingStand");
+        int artificial=snapshot.count("minecraft:obsidian")+snapshot.count("minecraft:crafting_table")
+                +snapshot.count("minecraft:anvil")+snapshot.count("minecraft:bed");
+        int crops=snapshot.count("minecraft:farmland")+snapshot.count("minecraft:wheat")
+                +snapshot.count("minecraft:carrots")+snapshot.count("minecraft:potatoes")
+                +snapshot.count("minecraft:nether_wart");
+        int score=storage*3+utility*2+Math.min(12,artificial/4)+Math.min(10,crops/20);
+        if(score<evidenceThreshold)return;
+        int confidence=Math.min(100,10+storage*10+utility*5+Math.min(20,artificial/3)+Math.min(20,crops/15));
+        if(confidence<minConfidence)return;
+        long key=chunkKey(snapshot.chunkX,snapshot.chunkZ);
+        boolean fresh=true;
+        for(DiscoveryDatabase.Entry known:DiscoveryDatabase.all())if("BASE".equals(known.type)
+                &&Math.abs(known.x-x)<=32&&Math.abs(known.z-z)<=32){fresh=false;break;}
+        List<BlockPos> examples=snapshot.storage.size()>3?snapshot.storage.subList(0,3):snapshot.storage;
+        candidates.put(key,new Signal(snapshot.chunkX,snapshot.chunkZ,score,storage+utility,System.currentTimeMillis(),examples));
+        Map<String,Integer> counts=new LinkedHashMap<String,Integer>(snapshot.tiles);
+        String reason=storage+" observed storage/utility positions, "+artificial+" artificial blocks, "+crops+" crop/farm blocks";
+        DiscoveryDatabase.observe("BASE",x,64,z,confidence,reason,counts,32,autoWaypoint!=0);
+        if(fresh&&notify!=0)DiscoveryNotifier.alert("Possible base",confidence,x,z,reason);
         while(candidates.size()>MAX_CANDIDATES){Iterator<Long> oldest=candidates.keySet().iterator();if(!oldest.hasNext())break;oldest.next();oldest.remove();}
-    }
-
-    private static int weight(TileEntity tile){
-        if(tile instanceof TileEntityChest||tile instanceof TileEntityEnderChest||tile instanceof TileEntityShulkerBox)return 3;
-        if(tile instanceof TileEntityFurnace||tile instanceof TileEntityHopper||tile instanceof TileEntityBrewingStand)return 2;
-        if(tile instanceof TileEntityDispenser||tile instanceof TileEntityDropper||tile instanceof TileEntitySign)return 1;
-        return 0;
     }
 
     @Override public void render(float partialTicks){

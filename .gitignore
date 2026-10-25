@@ -1,5 +1,8 @@
 # Gradle, Forge, and generated release files
 .gradle/
+.gradle-home/
+.jdk8/
+jdk8.zip
 build/
 .tools/
 out/

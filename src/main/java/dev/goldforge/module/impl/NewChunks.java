@@ -3,7 +3,6 @@ package dev.goldforge.module.impl;
 import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
 import dev.goldforge.ConfigManager;
-import net.minecraft.client.multiplayer.ChunkProviderClient;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderGlobal;
@@ -59,7 +58,6 @@ public final class NewChunks extends Module {
     @Override public void tick(){
         if(mc.player==null||mc.world==null){saveHistory();historyKey=null;visited.clear();recent.clear();return;}
         ensureHistoryLoaded();
-        scanLoadedRenderDistance();
         observePlayer(mc.player);
         for(EntityPlayer player:mc.world.playerEntities)if(player!=null)observePlayer(player);
         if(++saveTimer>=100){saveTimer=0;saveHistory();}
@@ -86,6 +84,7 @@ public final class NewChunks extends Module {
             for(int dx=-radiusChunks;dx<=radiusChunks;dx++)for(int dz=-radiusChunks;dz<=radiusChunks;dz++){
                 if(dx*dx+dz*dz>radiusChunks*radiusChunks)continue;
                 int cx=mc.player.chunkCoordX+dx,cz=mc.player.chunkCoordZ+dz;
+                if(!received.contains(key(cx,cz)))continue;
                 boolean observed=visited.contains(key(cx,cz));
                 // Red means no player-presence observation exists in this client's saved history.
                 float r=observed?.08F:1F,g=observed?1F:.08F,b=observed?.16F:.04F,a=.22F;
@@ -99,6 +98,7 @@ public final class NewChunks extends Module {
             for(int dx=-radiusChunks;dx<=radiusChunks;dx++)for(int dz=-radiusChunks;dz<=radiusChunks;dz++){
                 if(dx*dx+dz*dz>radiusChunks*radiusChunks)continue;
                 int cx=mc.player.chunkCoordX+dx,cz=mc.player.chunkCoordZ+dz;
+                if(!received.contains(key(cx,cz)))continue;
                 boolean observed=visited.contains(key(cx,cz));
                 float r=observed?.18F:1F,g=observed?1F:.12F,b=observed?.26F:.08F,a=.78F;
                 double x=(double)cx*16D-camera.x,z=(double)cz*16D-camera.z;
@@ -133,16 +133,6 @@ public final class NewChunks extends Module {
         if(visited.add(key(player.chunkCoordX,player.chunkCoordZ))){
             historyDirty=true;
             while(visited.size()>MAX_HISTORY){Iterator<Long> iterator=visited.iterator();iterator.next();iterator.remove();}
-        }
-    }
-    private void scanLoadedRenderDistance(){
-        if(!(mc.world.getChunkProvider() instanceof ChunkProviderClient))return;
-        ChunkProviderClient provider=(ChunkProviderClient)mc.world.getChunkProvider();
-        int radius=Math.max(2,mc.gameSettings.renderDistanceChunks);
-        for(int dx=-radius;dx<=radius;dx++)for(int dz=-radius;dz<=radius;dz++){
-            if(dx*dx+dz*dz>radius*radius)continue;
-            int cx=mc.player.chunkCoordX+dx,cz=mc.player.chunkCoordZ+dz;
-            if(provider.getLoadedChunk(cx,cz)!=null)recordReceived(cx,cz);
         }
     }
     private void recordReceived(int x,int z){
