@@ -1,5 +1,13 @@
 # Changelog
 
+## dev-4.0.3-beta 2026-10-25
+
+- Corrected pixel window transparency with a full 0–100% range and live GUI editor preview.
+- Added hover marquee text for long module and setting labels, with scissor clipping.
+- Replaced numeric controls with draggable step-aware sliders in both module browsers, including decimal values.
+- Updated menu and ClickGUI version labels to use the client version constant.
+
+
 ## dev-4.0.2-beta 2026-10-25
 
 - Rebuilt module settings as independently animated inline dropdowns; multiple modules can stay open.

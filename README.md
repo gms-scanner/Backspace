@@ -8,14 +8,14 @@
 
 <p align="center">
   A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
-  <strong>dev-4.0.2-beta</strong>
+  <strong>dev-4.0.3-beta</strong>
 </p>
 
 <p align="center">
   <img alt="Minecraft 1.12.2" src="https://img.shields.io/badge/Minecraft-1.12.2-5b8c3a?style=flat-square">
   <img alt="Forge 14.23.5.2859" src="https://img.shields.io/badge/Forge-14.23.5.2859-e36d28?style=flat-square">
   <img alt="Java 8" src="https://img.shields.io/badge/Java-8-f89820?style=flat-square">
-  <img alt="Release dev-4.0.2-beta" src="https://img.shields.io/badge/release-dev--4.0.2--beta-ffd800?style=flat-square">
+  <img alt="Release dev-4.0.3-beta" src="https://img.shields.io/badge/release-dev--4.0.3--beta-ffd800?style=flat-square">
 </p>
 
 ---
@@ -48,7 +48,7 @@ The module browser uses compact vanilla-style category columns and pixel toggles
 1. Install Minecraft **1.12.2** with Forge **14.23.5.2859**.
 2. Download both files from the release:
 
-   * `backspace-dev-4.0.2-beta.jar`
+   * `backspace-dev-4.0.3-beta.jar`
    * `OneConfig-1.12.2-forge.jar`
 3. Place both JAR files in your `.minecraft/mods` folder.
 4. Launch Minecraft using **Java 8**.
@@ -80,7 +80,7 @@ Open a terminal in the project directory and run the command for your operating 
 After the build finishes, the JAR will be located at:
 
 ```text
-build/libs/backspace-dev-4.0.2-beta.jar
+build/libs/backspace-dev-4.0.3-beta.jar
 ```
 
 The project includes a Gradle wrapper pinned to version `4.10.3`, so there's no need to install Gradle separately.
