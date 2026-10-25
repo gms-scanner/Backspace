@@ -175,7 +175,8 @@ public final class PixelClickGui extends GuiScreen {
         int end = Math.min(y + h, bodyTop() + body - 1);
         if (end <= top) return;
         clip(x + 4, top, W - 8, end - top);
-        box(x + 3, y, W - 6, h, surface());
+        // The category body supplies the only translucent fill. A second fill here
+        // would compound its alpha and make open settings appear more opaque.
         Gui.drawRect(x + 4, y + 1, x + 6, y + h - 1, accent());
         text(fit(module.description, W - 19), x + 9, y + 4, 0xFFE4E4D8);
         Gui.drawRect(x + 9, y + 16, x + W - 9, y + 30,
