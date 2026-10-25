@@ -1,5 +1,12 @@
 # Changelog
 
+## dev-4.0.2-beta 2026-10-25
+
+- Rebuilt module settings as independently animated inline dropdowns; multiple modules can stay open.
+- Category windows now follow their content height and scroll when the content exceeds the screen.
+- Removed the screen dimmer and stacked settings fill so window opacity reveals the world consistently.
+
+
 ## dev-4.0.1-beta 2026-10-24
 
 - Moved pixel ClickGUI settings directly below the module opened with right-click.
