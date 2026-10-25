@@ -8,21 +8,28 @@ import dev.goldforge.module.ModuleSetting;
 import dev.goldforge.module.impl.*;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
-/** Compact category windows with settings expanded directly below a module. */
+/** Content-sized category windows. Every expanded module owns space in the list. */
 public final class PixelClickGui extends GuiScreen {
     private static final int W = 136, GAP = 7, ROW = 17, TOP = 30, HEADER = 19, FOOT = 27;
     private final GuiScreen parent;
     private final EnumMap<Category, Integer> scroll = new EnumMap<Category, Integer>(Category.class);
-    private int page, settingsScroll;
-    private Module selected;
-    private boolean binding;
+    private final Set<Module> expanded = Collections.newSetFromMap(new IdentityHashMap<Module, Boolean>());
+    private final IdentityHashMap<Module, Float> animated = new IdentityHashMap<Module, Float>();
+    private int page;
+    private Module binding;
+    private long lastFrame;
 
     public PixelClickGui() { this(null); }
     public PixelClickGui(GuiScreen parent) { this.parent = parent; }
@@ -30,7 +37,8 @@ public final class PixelClickGui extends GuiScreen {
     private int columns() { return Math.max(1, (width - 16 + GAP) / (W + GAP)); }
     private int maxPage() { return Math.max(0, Category.values().length - columns()); }
     private int left(int column) { return 8 + column * (W + GAP); }
-    private int bottom() { return height - FOOT; }
+    private int bodyTop() { return TOP + HEADER; }
+    private int maxBody() { return Math.max(0, height - FOOT - bodyTop()); }
     private int accent() {
         switch (GuiPreferences.theme) {
             case 1: return 0xFFE35D65;
@@ -57,23 +65,53 @@ public final class PixelClickGui extends GuiScreen {
         fontRenderer.drawString(value, x, y, color);
     }
     private String fit(String value, int max) { return fontRenderer.trimStringToWidth(value, max); }
-    private int offset(Category category) {
+    private int scroll(Category category) {
         Integer value = scroll.get(category);
         return value == null ? 0 : value;
     }
-    private int settingsRows(int rowY) {
-        if (selected == null) return 0;
-        int available = bottom() - rowY - ROW;
-        int fixed = 71 + (special() ? 17 : 0);
-        return Math.max(0, Math.min(Math.min(5, selected.getSettings().size()), (available - fixed) / 18));
+    private int panelTarget(Module module) {
+        return 52 + module.getSettings().size() * 18 + (special(module) ? 17 : 0);
     }
-    private int editorHeight(int rowY) {
-        int available = bottom() - rowY - ROW;
-        return Math.max(0, Math.min(available, 71 + settingsRows(rowY) * 18 + (special() ? 17 : 0)));
+    private int panelHeight(Module module) {
+        Float value = animated.get(module);
+        return value == null ? 0 : Math.max(0, Math.round(value));
+    }
+    private int contentHeight(List<Module> modules) {
+        int result = 2;
+        for (Module module : modules) result += ROW + panelHeight(module);
+        return result;
+    }
+    private int bodyHeight(List<Module> modules) {
+        return Math.min(maxBody(), contentHeight(modules));
+    }
+    private int maxScroll(List<Module> modules) {
+        return Math.max(0, contentHeight(modules) - bodyHeight(modules));
+    }
+    private void updateAnimations(float partial) {
+        long now = System.nanoTime();
+        float dt = lastFrame == 0 ? 0 : Math.min(0.05F, (now - lastFrame) / 1000000000F);
+        lastFrame = now;
+        float ease = 1F - (float) Math.exp(-14F * dt);
+        for (Category category : Category.values()) {
+            for (Module module : GoldForge.MODULES.in(category)) {
+                float goal = expanded.contains(module) ? panelTarget(module) : 0;
+                Float old = animated.get(module);
+                float next = (old == null ? 0 : old) + (goal - (old == null ? 0 : old)) * ease;
+                if (Math.abs(goal - next) < 0.5F) next = goal;
+                animated.put(module, next);
+            }
+        }
+    }
+    private void clip(int x, int y, int w, int h) {
+        int scale = new ScaledResolution(mc).getScaleFactor();
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(x * scale, mc.displayHeight - (y + h) * scale,
+                Math.max(0, w * scale), Math.max(0, h * scale));
     }
 
     @Override public void drawScreen(int mx, int my, float partial) {
-        Gui.drawRect(0, 0, width, height, 0x63000000);
+        updateAnimations(partial);
+        // The world is left untouched; the opacity preference controls the actual window fill.
         text("BACKSPACE", 8, 8, accent());
         text("<  CATEGORIES  >", Math.max(8, width - 100), 8, 0xFFE0E0D0);
         page = Math.min(page, maxPage());
@@ -89,30 +127,40 @@ public final class PixelClickGui extends GuiScreen {
 
     private void drawColumn(Category category, int x, int mx, int my) {
         List<Module> modules = GoldForge.MODULES.in(category);
+        int body = bodyHeight(modules);
+        int max = maxScroll(modules);
+        int offset = Math.max(0, Math.min(scroll(category), max));
+        scroll.put(category, offset);
         box(x, TOP, W, HEADER, accent());
         text(category.name(), x + 5, TOP + 5, 0xFF101010);
         text(Integer.toString(modules.size()), x + W - 18, TOP + 5, 0xFF101010);
-        box(x, TOP + HEADER, W, bottom() - TOP - HEADER, surface());
-        int start = Math.max(0, Math.min(offset(category), Math.max(0, modules.size() - 1)));
-        scroll.put(category, start);
-        int rowY = TOP + HEADER + 1;
-        for (int index = start; index < modules.size() && rowY + ROW <= bottom(); index++) {
-            Module module = modules.get(index);
-            boolean hover = mx >= x && mx < x + W && my >= rowY && my < rowY + ROW;
-            if (hover) Gui.drawRect(x + 1, rowY, x + W - 1, rowY + ROW, 0x806B591C);
-            if (module.enabled) Gui.drawRect(x + 1, rowY, x + 3, rowY + ROW, accent());
-            text(fit(module.name, W - 27), x + 6, rowY + 4, module.enabled ? accent() : 0xFFE5E5D6);
-            circle(x + W - 12, rowY + 8, module.enabled);
-            if (module == selected) {
-                int h = editorHeight(rowY);
-                if (h > 0) drawSettings(x, rowY + ROW, h);
-                rowY += h;
+        if (body <= 0) return;
+        box(x, bodyTop(), W, body, surface());
+        clip(x + 1, bodyTop() + 1, W - 2, Math.max(0, body - 2));
+        int y = bodyTop() + 1 - offset;
+        for (Module module : modules) {
+            if (y + ROW > bodyTop() && y < bodyTop() + body) {
+                boolean hover = mx >= x && mx < x + W && my >= y && my < y + ROW;
+                if (hover) Gui.drawRect(x + 1, y, x + W - 1, y + ROW, 0x556B591C);
+                if (module.enabled) Gui.drawRect(x + 1, y, x + 3, y + ROW, accent());
+                text(fit(module.name, W - 27), x + 6, y + 4,
+                        module.enabled ? accent() : 0xFFE5E5D6);
+                circle(x + W - 12, y + 8, module.enabled);
             }
-            rowY += ROW;
+            y += ROW;
+            int h = panelHeight(module);
+            if (h > 0 && y + h > bodyTop() && y < bodyTop() + body)
+                drawSettings(module, x, y, h, body);
+            y += h;
         }
-        if (modules.size() > 0 && (start > 0 || rowY < TOP + HEADER + 1 + modules.size() * ROW))
-            text((start + 1) + "-" + Math.min(modules.size(), start + Math.max(1, (bottom() - TOP - HEADER) / ROW))
-                    + " / " + modules.size(), x + 4, bottom() + 3, accent());
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        if (max > 0) {
+            int track = Math.max(8, body - 4);
+            int thumb = Math.max(8, track * body / contentHeight(modules));
+            int pos = max == 0 ? 0 : (track - thumb) * offset / max;
+            Gui.drawRect(x + W - 3, bodyTop() + 2 + pos,
+                    x + W - 1, bodyTop() + 2 + pos + thumb, accent());
+        }
     }
 
     private void circle(int cx, int cy, boolean enabled) {
@@ -122,66 +170,62 @@ public final class PixelClickGui extends GuiScreen {
         if (enabled) Gui.drawRect(cx - 2, cy - 2, cx + 2, cy + 1, accent());
     }
 
-    private void drawSettings(int x, int y, int h) {
-        box(x + 3, y, W - 6, h, surface());
+    private void drawSettings(Module module, int x, int y, int h, int body) {
+        int top = Math.max(y, bodyTop() + 1);
+        int end = Math.min(y + h, bodyTop() + body - 1);
+        if (end <= top) return;
+        clip(x + 4, top, W - 8, end - top);
+        // The category body supplies the only translucent fill. A second fill here
+        // would compound its alpha and make open settings appear more opaque.
         Gui.drawRect(x + 4, y + 1, x + 6, y + h - 1, accent());
-        text(fit(selected.description, W - 16), x + 9, y + 4, 0xFFE4E4D8);
-        int toggleY = y + 16;
-        Gui.drawRect(x + 9, toggleY, x + W - 9, toggleY + 14,
-                selected.enabled ? accent() : 0xFF494944);
-        text(selected.enabled ? "ENABLED" : "DISABLED", x + 13, toggleY + 3,
-                selected.enabled ? 0xFF101010 : 0xFFF1F1E4);
-        List<ModuleSetting> options = selected.getSettings();
-        int rows = settingsRows(y - ROW);
-        settingsScroll = Math.max(0, Math.min(settingsScroll, Math.max(0, options.size() - rows)));
-        for (int i = 0; i < rows; i++) {
-            ModuleSetting option = options.get(settingsScroll + i);
+        text(fit(module.description, W - 19), x + 9, y + 4, 0xFFE4E4D8);
+        Gui.drawRect(x + 9, y + 16, x + W - 9, y + 30,
+                module.enabled ? accent() : 0xB0494944);
+        text(module.enabled ? "ENABLED" : "DISABLED", x + 13, y + 19,
+                module.enabled ? 0xFF101010 : 0xFFF1F1E4);
+        List<ModuleSetting> options = module.getSettings();
+        for (int i = 0; i < options.size(); i++) {
+            ModuleSetting option = options.get(i);
             int sy = y + 34 + i * 18;
-            Gui.drawRect(x + 9, sy, x + W - 9, sy + 17, 0xD02A2A28);
+            Gui.drawRect(x + 9, sy, x + W - 9, sy + 17, 0xA02A2A28);
             text(fit(option.name, 64), x + 12, sy + 4, 0xFFE8E7D9);
             text("-", x + W - 57, sy + 4, accent());
             text(Integer.toString(option.get()), x + W - 43, sy + 4, accent());
             text("+", x + W - 18, sy + 4, accent());
         }
-        int keyY = y + 34 + rows * 18;
-        if (keyY + 16 <= y + h) {
-            Gui.drawRect(x + 9, keyY, x + W - 9, keyY + 16, 0xD0423C23);
-            text(binding ? "PRESS A KEY..." : "KEY: " + (selected.key == 0 ? "NONE" :
-                    Keyboard.getKeyName(selected.key)), x + 12, keyY + 4, accent());
-        }
-        if (special() && keyY + 33 <= y + h)
-            text("OPEN MODULE EDITOR", x + 9, keyY + 21, accent());
+        int keyY = y + 34 + options.size() * 18;
+        Gui.drawRect(x + 9, keyY, x + W - 9, keyY + 16, 0xA0423C23);
+        text(binding == module ? "PRESS A KEY..." : "KEY: " + (module.key == 0 ? "NONE" :
+                Keyboard.getKeyName(module.key)), x + 12, keyY + 4, accent());
+        if (special(module)) text("OPEN MODULE EDITOR", x + 9, keyY + 21, accent());
+        clip(x + 1, bodyTop() + 1, W - 2, Math.max(0, body - 2));
     }
 
-    private boolean special() {
-        return selected instanceof BlockESP || selected instanceof DIESP
-                || selected instanceof AutoSign || selected instanceof Hands;
+    private boolean special(Module module) {
+        return module instanceof BlockESP || module instanceof DIESP
+                || module instanceof AutoSign || module instanceof Hands;
     }
-    private void openEditor() {
-        if (selected instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) selected));
-        else if (selected instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) selected));
-        else if (selected instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) selected));
-        else if (selected instanceof Hands) ((Hands) selected).openEditor();
+    private void openEditor(Module module) {
+        if (module instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) module));
+        else if (module instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) module));
+        else if (module instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) module));
+        else if (module instanceof Hands) ((Hands) module).openEditor();
     }
-
-    private boolean settingsClick(int x, int y, int h, int mx, int my) {
-        if (mx < x + 3 || mx >= x + W - 3 || my < y || my >= y + h) return false;
-        if (mx >= x + 9 && mx < x + W - 9 && my >= y + 16 && my < y + 30) {
-            selected.toggle(); return true;
+    private void settingsClick(Module module, int x, int y, int h, int mx, int my) {
+        if (my >= y + 16 && my < y + 30 && mx >= x + 9 && mx < x + W - 9) {
+            module.toggle(); return;
         }
-        int rows = settingsRows(y - ROW);
-        for (int i = 0; i < rows; i++) {
+        List<ModuleSetting> options = module.getSettings();
+        for (int i = 0; i < options.size(); i++) {
             int sy = y + 34 + i * 18;
             if (my >= sy && my < sy + 17 && mx >= x + W - 62 && mx < x + W - 9) {
-                if (mx < x + W - 31) selected.getSettings().get(settingsScroll + i).adjust(-1);
-                else selected.getSettings().get(settingsScroll + i).adjust(1);
-                return true;
+                options.get(i).adjust(mx < x + W - 31 ? -1 : 1);
+                return;
             }
         }
-        int keyY = y + 34 + rows * 18;
-        if (my >= keyY && my < keyY + 16) { binding = true; return true; }
-        if (special() && my >= keyY + 17 && my < keyY + 34) { openEditor(); return true; }
-        return true;
+        int keyY = y + 34 + options.size() * 18;
+        if (my >= keyY && my < keyY + 16) { binding = module; return; }
+        if (special(module) && my >= keyY + 17 && my < keyY + 34) openEditor(module);
     }
 
     @Override protected void mouseClicked(int mx, int my, int button) throws IOException {
@@ -199,27 +243,24 @@ public final class PixelClickGui extends GuiScreen {
             if (mx < x || mx >= x + W) continue;
             Category category = categories[page + col];
             List<Module> modules = GoldForge.MODULES.in(category);
-            int rowY = TOP + HEADER + 1;
-            for (int index = Math.max(0, offset(category)); index < modules.size()
-                    && rowY + ROW <= bottom(); index++) {
-                Module module = modules.get(index);
-                if (my >= rowY && my < rowY + ROW) {
+            int body = bodyHeight(modules);
+            if (my < bodyTop() + 1 || my >= bodyTop() + body - 1) continue;
+            int y = bodyTop() + 1 - Math.min(scroll(category), maxScroll(modules));
+            for (Module module : modules) {
+                if (my >= y && my < y + ROW) {
                     if (button == 0) module.toggle();
                     else if (button == 1) {
-                        if (selected == module) { selected = null; binding = false; }
-                        else {
-                            selected = module; settingsScroll = 0; binding = false;
-                            scroll.put(category, index); // Put the clicked row at the top so its editor fits.
-                        }
+                        if (!expanded.add(module)) { expanded.remove(module); if (binding == module) binding = null; }
                     }
                     return;
                 }
-                if (module == selected) {
-                    int h = editorHeight(rowY);
-                    if (settingsClick(x, rowY + ROW, h, mx, my)) return;
-                    rowY += h;
+                y += ROW;
+                int h = panelHeight(module);
+                if (my >= y && my < y + h) {
+                    if (button == 0) settingsClick(module, x, y, h, mx, my);
+                    return;
                 }
-                rowY += ROW;
+                y += h;
             }
         }
         if (my < 23) {
@@ -239,41 +280,24 @@ public final class PixelClickGui extends GuiScreen {
             if (mx < x || mx >= x + W) continue;
             Category category = Category.values()[page + col];
             List<Module> modules = GoldForge.MODULES.in(category);
-            int rowY = TOP + HEADER + 1;
-            for (int i = Math.max(0, offset(category)); i < modules.size()
-                    && rowY + ROW <= bottom(); i++) {
-                if (modules.get(i) == selected) {
-                    int h = editorHeight(rowY);
-                    if (my >= rowY + ROW && my < rowY + ROW + h) {
-                        settingsScroll = Math.max(0, Math.min(
-                                Math.max(0, selected.getSettings().size() - settingsRows(rowY)),
-                                settingsScroll + (wheel < 0 ? 1 : -1)));
-                        return;
-                    }
-                    rowY += h;
-                }
-                rowY += ROW;
+            if (my >= bodyTop() && my < bodyTop() + bodyHeight(modules)) {
+                scroll.put(category, Math.max(0, Math.min(maxScroll(modules),
+                        scroll(category) + (wheel < 0 ? ROW * 2 : -ROW * 2))));
+                return;
             }
-            int max = Math.max(0, modules.size() - 1);
-            scroll.put(category, Math.max(0, Math.min(max,
-                    offset(category) + (wheel < 0 ? 2 : -2))));
-            return;
         }
         page = Math.max(0, Math.min(maxPage(), page + (wheel < 0 ? 1 : -1)));
     }
 
     @Override protected void keyTyped(char ch, int key) throws IOException {
-        if (binding && selected != null) {
-            selected.setKey(key == Keyboard.KEY_ESCAPE ? 0 : key);
-            binding = false; return;
+        if (binding != null) {
+            binding.setKey(key == Keyboard.KEY_ESCAPE ? 0 : key);
+            binding = null; return;
         }
-        if (key == Keyboard.KEY_ESCAPE) {
-            if (selected != null) { selected = null; return; }
-            mc.displayGuiScreen(parent); return;
-        }
+        if (key == Keyboard.KEY_ESCAPE) { mc.displayGuiScreen(parent); return; }
         if (key == Keyboard.KEY_LEFT) page = Math.max(0, page - 1);
         else if (key == Keyboard.KEY_RIGHT) page = Math.min(maxPage(), page + 1);
-        super.keyTyped(ch, key);
+        else super.keyTyped(ch, key);
     }
     @Override public void onGuiClosed() { ConfigManager.save(); }
     @Override public boolean doesGuiPauseGame() { return false; }

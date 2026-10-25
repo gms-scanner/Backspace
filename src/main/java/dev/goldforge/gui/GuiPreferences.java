@@ -7,7 +7,7 @@ import java.util.Properties;
 public final class GuiPreferences {
     public static int layout = 1;
     public static int theme = 0; // gold, red, mint, blue
-    public static int pixelOpacity = 232;
+    public static int pixelOpacity = 160;
     public static final int[] panelX = new int[Category.values().length];
     public static final int[] panelY = new int[Category.values().length];
     public static final boolean[] collapsed = new boolean[Category.values().length];
