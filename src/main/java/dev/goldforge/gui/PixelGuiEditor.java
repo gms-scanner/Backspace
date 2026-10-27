@@ -1,5 +1,7 @@
 package dev.goldforge.gui;
 
+import cc.polyfrost.oneconfig.internal.gui.BlurHandler;
+import cc.polyfrost.oneconfig.utils.gui.BlurScreen;
 import dev.goldforge.ConfigManager;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
@@ -10,13 +12,16 @@ import org.lwjgl.opengl.GL11;
 import java.io.IOException;
 
 /** In-game editor for the pixel category windows. */
-public final class PixelGuiEditor extends GuiScreen {
+public final class PixelGuiEditor extends GuiScreen implements BlurScreen {
     private static final String[] THEMES = {"GOLD", "RED", "MINT", "BLUE"};
     private static final int[] ACCENTS = {0xFFF4CE38, 0xFFE35D65, 0xFF6DE0BB, 0xFF75BBF7};
     private final GuiScreen parent;
     private boolean draggingTransparency;
 
     public PixelGuiEditor(GuiScreen parent) { this.parent = parent; }
+
+    @Override public void initGui() { BlurHandler.INSTANCE.reloadBlur(this); }
+    @Override public boolean hasBackgroundBlur() { return true; }
 
     private int x() { return (width - 260) / 2; }
     private int y() { return (height - 180) / 2; }
@@ -107,7 +112,7 @@ public final class PixelGuiEditor extends GuiScreen {
         if (key == Keyboard.KEY_ESCAPE) { close(); return; }
         super.keyTyped(ch, key);
     }
-    @Override public void onGuiClosed() { ConfigManager.save(); }
+    @Override public void onGuiClosed() { BlurHandler.INSTANCE.reloadBlur(null); ConfigManager.save(); }
     @Override public boolean doesGuiPauseGame() { return false; }
     @Override public void drawDefaultBackground() {}
 }

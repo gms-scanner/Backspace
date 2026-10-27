@@ -1,6 +1,7 @@
 package dev.goldforge.gui;
 
 import cc.polyfrost.oneconfig.libs.universal.UKeyboard;
+import cc.polyfrost.oneconfig.internal.gui.BlurHandler;
 import cc.polyfrost.oneconfig.renderer.NanoVGHelper;
 import cc.polyfrost.oneconfig.renderer.font.Fonts;
 import cc.polyfrost.oneconfig.utils.InputHandler;
@@ -94,6 +95,7 @@ public final class ModernClickGui extends OneUIScreen {
 
     @Override public void initScreen(int screenWidth, int screenHeight) {
         openedAt = System.currentTimeMillis();
+        BlurHandler.INSTANCE.reloadBlur(this);
     }
 
     @Override public boolean hasBackgroundBlur() { return true; }

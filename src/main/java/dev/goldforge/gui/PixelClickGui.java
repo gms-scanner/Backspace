@@ -1,5 +1,7 @@
 package dev.goldforge.gui;
 
+import cc.polyfrost.oneconfig.internal.gui.BlurHandler;
+import cc.polyfrost.oneconfig.utils.gui.BlurScreen;
 import dev.goldforge.ConfigManager;
 import dev.goldforge.GoldForge;
 import dev.goldforge.module.Category;
@@ -24,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 /** Content-sized category windows. Every expanded module owns space in the list. */
-public final class PixelClickGui extends GuiScreen {
+public final class PixelClickGui extends GuiScreen implements BlurScreen {
     private static final int W = 136, GAP = 7, ROW = 17, TOP = 30, HEADER = 19, FOOT = 27;
     private final GuiScreen parent;
     private final EnumMap<Category, Integer> scroll = new EnumMap<Category, Integer>(Category.class);
@@ -47,6 +49,9 @@ public final class PixelClickGui extends GuiScreen {
 
     public PixelClickGui() { this(null); }
     public PixelClickGui(GuiScreen parent) { this.parent = parent; }
+
+    @Override public void initGui() { BlurHandler.INSTANCE.reloadBlur(this); }
+    @Override public boolean hasBackgroundBlur() { return true; }
 
     private int columns() { return Math.max(1, (width - 16 + GAP) / (W + GAP)); }
     private int maxPage() { return Math.max(0, Category.values().length - columns()); }
@@ -172,11 +177,12 @@ public final class PixelClickGui extends GuiScreen {
 
     @Override public void drawScreen(int mx, int my, float partial) {
         updateAnimations(partial);
+        BrandMark.draw(8, 5, 20);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
                 GL11.GL_ONE, GL11.GL_ZERO);
         // The world is left untouched; the opacity preference controls the actual window fill.
-        text("BACKSPACE", 8, 8, accent());
+        text("BACKSPACE", 34, 10, accent());
         text("<  CATEGORIES  >", Math.max(8, width - 100), 8, 0xFFE0E0D0);
         page = Math.min(page, maxPage());
         Category[] categories = Category.values();
@@ -405,7 +411,7 @@ public final class PixelClickGui extends GuiScreen {
         else if (key == Keyboard.KEY_RIGHT) page = Math.min(maxPage(), page + 1);
         else super.keyTyped(ch, key);
     }
-    @Override public void onGuiClosed() { ConfigManager.save(); }
+    @Override public void onGuiClosed() { BlurHandler.INSTANCE.reloadBlur(null); ConfigManager.save(); }
     @Override public boolean doesGuiPauseGame() { return false; }
     @Override public void drawDefaultBackground() {}
 }

@@ -1,5 +1,7 @@
 package dev.goldforge.gui;
 
+import cc.polyfrost.oneconfig.internal.gui.BlurHandler;
+import cc.polyfrost.oneconfig.utils.gui.BlurScreen;
 import dev.goldforge.GoldForge;
 import dev.goldforge.ConfigManager;
 import dev.goldforge.module.Category;
@@ -30,7 +32,7 @@ import java.util.List;
 import java.util.Locale;
 
 /** Three-pane, compact module browser with a persistent settings inspector. */
-public final class ClickGui extends GuiScreen {
+public final class ClickGui extends GuiScreen implements BlurScreen {
     private final GuiScreen parent;
     private int PANEL = 0xFF0B1117;
     private int CARD = 0xFF131B22;
@@ -69,7 +71,10 @@ public final class ClickGui extends GuiScreen {
     public ClickGui() { this(null); }
     public ClickGui(GuiScreen parent) { this.parent = parent; }
 
+    @Override public boolean hasBackgroundBlur() { return true; }
+
     @Override public void initGui() {
+        BlurHandler.INSTANCE.reloadBlur(this);
         // The legacy floating panels were kept for old configs during the initial
         // transition.  The library is now one cohesive surface, so always open the
         // card view instead of restoring an obsolete layout from disk.
@@ -83,6 +88,7 @@ public final class ClickGui extends GuiScreen {
     }
 
     @Override public void onGuiClosed() {
+        BlurHandler.INSTANCE.reloadBlur(null);
         if (uiFont != null) { uiFont.dispose(); uiFont = null; }
         UiSurface.dispose();
     }
