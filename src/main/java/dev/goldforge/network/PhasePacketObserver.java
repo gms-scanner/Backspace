@@ -12,6 +12,7 @@ import net.minecraft.network.play.server.SPacketPlayerPosLook;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
 import net.minecraft.network.play.server.SPacketExplosion;
 import net.minecraft.network.play.server.SPacketBlockChange;
+import net.minecraft.network.play.server.SPacketMultiBlockChange;
 import net.minecraft.network.play.server.SPacketBlockBreakAnim;
 import net.minecraft.network.play.server.SPacketEntityStatus;
 import net.minecraft.network.play.server.SPacketPlayerListItem;
@@ -121,6 +122,20 @@ public final class PhasePacketObserver {
                         }};
                         // Capture the authoritative reply before packet_handler may defer it.
                         // Scaffold also checks the world state before using the new support.
+                        if(client.isCallingFromMinecraftThread())apply.run();
+                        else client.addScheduledTask(apply);
+                    }
+                    if(message instanceof SPacketMultiBlockChange){
+                        final SPacketMultiBlockChange.BlockUpdateData[] updates=
+                                ((SPacketMultiBlockChange)message).getChangedBlocks();
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable apply=new Runnable(){@Override public void run(){
+                            dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
+                            if(!(module instanceof Scaffold))return;
+                            Scaffold scaffold=(Scaffold)module;
+                            for(SPacketMultiBlockChange.BlockUpdateData update:updates)
+                                scaffold.onServerBlockChange(update.getPos(),update.getBlockState());
+                        }};
                         if(client.isCallingFromMinecraftThread())apply.run();
                         else client.addScheduledTask(apply);
                     }
