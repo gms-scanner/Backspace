@@ -404,9 +404,8 @@ public final class ClickGui extends GuiScreen {
             boolean hover = inside(mx, my, DETAIL_X + 12, y, DETAIL_W - 24, 21);
             roundedRect(DETAIL_X + 12, y, DETAIL_W - 24, 21, 5, hover ? CARD_HOVER : CARD);
             if(setting.isToggle()){
-                text(clipped(setting.name, 91), DETAIL_X + 19, y + 5, TEXT);
-                text(setting.isEnabled()?"ON":"OFF",DETAIL_X+112,y+5,setting.isEnabled()?MINT:MUTED);
-                drawToggle(DETAIL_X+143,y+4,setting.isEnabled(),hover);
+                text(clipped(setting.name, 84), DETAIL_X + 19, y + 5, TEXT);
+                drawToggle(DETAIL_X+111,y+4,setting.isEnabled(),hover);
             }else{
                 text(clipped(setting.name, 73), DETAIL_X + 19, y + 5, TEXT);
                 text("-", DETAIL_X + 93, y + 4, MINT);

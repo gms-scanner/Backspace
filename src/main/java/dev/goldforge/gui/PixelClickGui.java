@@ -264,7 +264,7 @@ public final class PixelClickGui extends GuiScreen {
             String value = option.formattedValue();
             int valueWidth = fontRenderer.getStringWidth(value);
             boolean toggle=option.isToggle();
-            int nameWidth = Math.max(18, W - (toggle?66:33) - valueWidth);
+            int nameWidth = toggle ? W - 94 : Math.max(18, W - 33 - valueWidth);
             marquee(option, nameMarquees, option.name, x + 12, sy + 1, nameWidth,
                     hover, 0xFFE8E7D9);
             if(toggle){

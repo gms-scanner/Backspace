@@ -381,7 +381,7 @@ public final class ModernClickGui extends OneUIScreen {
             String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
                     ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
             if(setting.isToggle()){
-                marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, w - 112F, rowHovered);
+                marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, Math.max(18F,w - 124F), rowHovered);
                 text(vg, setting.isEnabled()?"ON":"OFF", x+w-91F, sy+4F, 10F, setting.isEnabled()?YELLOW:MUTED);
                 drawToggle(vg,input,x+w-62F,sy+7F,setting.isEnabled());
                 if(input.isAreaClicked(x+14F,sy,w-28F,31F)){setting.toggle();draggingSetting=null;}
