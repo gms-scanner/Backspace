@@ -24,6 +24,7 @@ import dev.goldforge.module.impl.NoFall;
 import dev.goldforge.module.impl.GroundSpoof;
 import dev.goldforge.module.impl.CraftCarry;
 import dev.goldforge.module.impl.Scaffold;
+import dev.goldforge.module.impl.RecentSurroundBlocks;
 import dev.goldforge.module.impl.BreakESP;
 import dev.goldforge.module.impl.PopChams;
 import dev.goldforge.module.impl.LogoutSpots;
@@ -119,6 +120,7 @@ public final class PhasePacketObserver {
                         Runnable apply=new Runnable(){@Override public void run(){
                             dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
                             if(module instanceof Scaffold)((Scaffold)module).onServerBlockChange(pos,state);
+                            RecentSurroundBlocks.onServerUpdate(pos,state);
                         }};
                         // Capture the authoritative reply before packet_handler may defer it.
                         // Scaffold also checks the world state before using the new support.
@@ -131,10 +133,10 @@ public final class PhasePacketObserver {
                         final Minecraft client=Minecraft.getMinecraft();
                         Runnable apply=new Runnable(){@Override public void run(){
                             dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
-                            if(!(module instanceof Scaffold))return;
-                            Scaffold scaffold=(Scaffold)module;
-                            for(SPacketMultiBlockChange.BlockUpdateData update:updates)
-                                scaffold.onServerBlockChange(update.getPos(),update.getBlockState());
+                            for(SPacketMultiBlockChange.BlockUpdateData update:updates){
+                                if(module instanceof Scaffold)((Scaffold)module).onServerBlockChange(update.getPos(),update.getBlockState());
+                                RecentSurroundBlocks.onServerUpdate(update.getPos(),update.getBlockState());
+                            }
                         }};
                         if(client.isCallingFromMinecraftThread())apply.run();
                         else client.addScheduledTask(apply);
