@@ -48,7 +48,7 @@ public final class CrystalAura extends Module {
     public int profile=1, actionDelay=0, breakRange=4, aimOnly=0, targetRange=12, minDamage=4, maxSelfDamage=8, attacksPerTick=1;
     public int faceplace=1, faceplaceHealth=8, faceplaceArmorPercent=22, faceplaceMinDamage=2, friendFilter=1;
     public int place=1, breaking=1, placeRange=4, placeDelay=0, breakDelay=0, placeWallsRange=0, breakWallsRange=0;
-    public int rotate=1, swapMode=2, antiWeakness=1, pauseUsing=1, pauseMining=1;
+    public int rotate=1, swapMode=2, smartCombatSwap=1, antiWeakness=1, pauseUsing=1, pauseMining=1;
     public int predictionTicks=2, selfPredictionTicks=1, healthReserve=2, damageRatio=0, protectFriends=1;
     public int retryTicks=2, retryLimit=3, acknowledgementTicks=4, maxPending=2, minCrystalAge=0;
     public int multiTask=1, maxTargets=4, renderDamage=1, debug=0;
@@ -97,6 +97,7 @@ public final class CrystalAura extends Module {
         addIntSetting("Aim-only break",0,1,1,()->aimOnly,v->aimOnly=v);
         addIntSetting("Rotate (0 Off, 1 Silent, 2 Camera)",0,2,1,()->rotate,v->rotate=v);
         addIntSetting("Swap (0 Held, 1 Select, 2 Restore)",0,2,1,()->swapMode,v->swapMode=v);
+        addIntSetting("HvH auto swap crystals (0/1)",0,1,1,()->smartCombatSwap,v->smartCombatSwap=v);
         addIntSetting("Anti weakness",0,1,1,()->antiWeakness,v->antiWeakness=v);
         addIntSetting("Pause while using item",0,1,1,()->pauseUsing,v->pauseUsing=v);
         addIntSetting("Pause while mining",0,1,1,()->pauseMining,v->pauseMining=v);
@@ -129,7 +130,7 @@ public final class CrystalAura extends Module {
         crystalLabels=Collections.emptyList();renderTarget=null;
         if(mc.player.isDead||mc.player.getHealth()<=0F){reset();return;}
         if(mc.player.isSpectator()
-                ||mc.currentScreen!=null||(pauseUsing!=0&&mc.player.isHandActive())
+                ||mc.currentScreen!=null||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
                 ||(pauseMining!=0&&mc.playerController.getIsHittingBlock())){
             state="Paused";return;
         }
@@ -177,7 +178,7 @@ public final class CrystalAura extends Module {
         if(!enabled||instantBreak==0||breaking==0||minCrystalAge>0||mc.player==null||mc.world==null
                 ||mc.playerController==null||mc.getConnection()==null||activeWorld!=mc.world
                 ||crystal.world!=mc.world||mc.player.isDead||mc.player.getHealth()<=0F
-                ||mc.currentScreen!=null||(pauseUsing!=0&&mc.player.isHandActive())
+                ||mc.currentScreen!=null||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
                 ||(pauseMining!=0&&mc.playerController.getIsHittingBlock())||!canBreakNow()
                 ||!breakAttempts.ready(crystal.getEntityId(),clientTicks))return;
         if(aimOnly!=0&&(mc.objectMouseOver==null||mc.objectMouseOver.entityHit!=crystal))return;
@@ -400,7 +401,7 @@ public final class CrystalAura extends Module {
         if(!safeAfterCommitted(crystal.getPositionVector()))return false;
         int previous=mc.player.inventory.currentItem, selected=previous;
         if(!canBreakWith(mc.player.getHeldItemMainhand())){
-            if(antiWeakness==0||swapMode==0)return false;
+            if(antiWeakness==0||effectiveSwapMode()==0)return false;
             selected=-1;
             for(int slot=0;slot<9;slot++)if(canBreakWith(mc.player.inventory.getStackInSlot(slot))){selected=slot;break;}
             if(selected<0){state="Weakness: weapon needed";return false;}
@@ -419,7 +420,7 @@ public final class CrystalAura extends Module {
             breakSends++;breaksThisTick++;
             nextBreakTick=clientTicks+effectiveDelay(breakDelay);
             damageCache.clear();state="Breaking";return true;
-        }finally{restoreAim();if(swapMode==2)selectSlot(previous);}
+        }finally{restoreAim();if(effectiveSwapMode()==2)selectSlot(previous);}
     }
 
     private boolean placeCrystal(PlacePlan plan){
@@ -431,7 +432,7 @@ public final class CrystalAura extends Module {
         int selected=previous;
         EnumHand hand=crystalHand();
         if(hand==null){
-            if(swapMode==0)return false;
+            if(effectiveSwapMode()==0)return false;
             int slot=InventoryManager.findItemInHotbar(mc,Items.END_CRYSTAL);
             if(slot<0)return false;
             selected=slot;hand=EnumHand.MAIN_HAND;
@@ -447,7 +448,7 @@ public final class CrystalAura extends Module {
             if(result==EnumActionResult.SUCCESS){recordCommitted(explosion,plan.evaluation);damageCache.clear();mc.player.swingArm(hand);placeSends++;state="Awaiting spawn";}
             else state="Placement rejected";
             return result==EnumActionResult.SUCCESS;
-        }finally{restoreAim();if(swapMode==2)selectSlot(previous);}
+        }finally{restoreAim();if(effectiveSwapMode()==2)selectSlot(previous);}
     }
 
     private double worstDamage(CrystalDamage.Snapshot snapshot,Vec3d explosion){
@@ -473,8 +474,11 @@ public final class CrystalAura extends Module {
         return mc.player.getHeldItemMainhand().getItem()==Items.END_CRYSTAL?EnumHand.MAIN_HAND:null;
     }
     private boolean hasAvailableCrystals(){
-        return crystalHand()!=null||(swapMode!=0&&InventoryManager.findItemInHotbar(mc,Items.END_CRYSTAL)>=0);
+        return crystalHand()!=null||(effectiveSwapMode()!=0&&InventoryManager.findItemInHotbar(mc,Items.END_CRYSTAL)>=0);
     }
+    private int effectiveSwapMode(){return profile==1&&smartCombatSwap!=0&&swapMode==0?2:swapMode;}
+    private boolean usingGoldenApple(){return mc.player.isHandActive()
+            &&mc.player.getActiveItemStack().getItem()==Items.GOLDEN_APPLE;}
     private void selectSlot(int slot){
         if(slot!=mc.player.inventory.currentItem){
             mc.player.inventory.currentItem=slot;

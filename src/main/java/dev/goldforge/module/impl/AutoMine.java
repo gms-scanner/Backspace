@@ -28,6 +28,7 @@ public final class AutoMine extends Module {
     public int ignoreFriends = 1;
     public int throughWalls = 0;
     public int autoRemine = 1;
+    public int surroundOnly = 1;
     public int rebreakWindow = 40;
     public int multiMine = 0;
     public int previewCount = 3;
@@ -52,6 +53,7 @@ public final class AutoMine extends Module {
         addIntSetting("Ignore friends (0/1)", 0, 1, 1, () -> ignoreFriends, v -> ignoreFriends = v);
         addIntSetting("Preview through walls (0/1)", 0, 1, 1, () -> throughWalls, v -> throughWalls = v);
         addIntSetting("Auto re-mine (0/1)", 0, 1, 1, () -> autoRemine, v -> autoRemine = v);
+        addIntSetting("Only surround blocks (0/1)", 0, 1, 1, () -> surroundOnly, v -> surroundOnly = v);
         addIntSetting("Re-mine window (ticks)", 1, 100, 1, () -> rebreakWindow, v -> rebreakWindow = v);
         addIntSetting("MultiMine queue (0/1)", 0, 1, 1, () -> multiMine, v -> multiMine = v);
         addIntSetting("Queue preview count", 2, 5, 1, () -> previewCount, v -> previewCount = v);
@@ -59,7 +61,8 @@ public final class AutoMine extends Module {
 
     @Override public void tick() {
         ticks++;
-        if (mc.player == null || mc.world == null || mc.playerController == null || mc.currentScreen != null) {
+        if (mc.player == null || mc.world == null || mc.playerController == null || mc.currentScreen != null
+                || mc.player.isHandActive()) {
             reset();
             return;
         }
@@ -106,6 +109,7 @@ public final class AutoMine extends Module {
             if (slot >= 0) {
                 if (originalSlot < 0) originalSlot = mc.player.inventory.currentItem;
                 mc.player.inventory.currentItem = slot;
+                mc.playerController.updateController();
                 selectedTool = slot;
             }
         }
@@ -168,8 +172,10 @@ public final class AutoMine extends Module {
     private boolean validBlock(BlockPos pos) {
         if (!mc.world.isBlockLoaded(pos)) return false;
         IBlockState state = mc.world.getBlockState(pos);
-        return !state.getMaterial().isReplaceable() && state.getBlockHardness(mc.world, pos) >= 0F
-                && state.getBlock() != Blocks.BEDROCK;
+        if(state.getMaterial().isReplaceable()||state.getBlockHardness(mc.world,pos)<0F
+                ||state.getBlock()==Blocks.BEDROCK)return false;
+        return surroundOnly==0||state.getBlock()==Blocks.OBSIDIAN||state.getBlock()==Blocks.ENDER_CHEST
+                ||state.getBlock()==Blocks.ANVIL||RecentSurroundBlocks.revision(pos,rebreakWindow)!=0L;
     }
 
     private EnumFacing reachableFace(BlockPos pos) {
