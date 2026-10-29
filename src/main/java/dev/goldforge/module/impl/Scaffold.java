@@ -102,10 +102,17 @@ public final class Scaffold extends Module {
                 retryTarget = null;
                 retries = 0;
             }
-            if (retryTarget != null && retries > retryLimit) return;
+            // Retry limits control backoff, never permanently blacklist the
+            // only bridge position in front of the player.
+            if (retryTarget != null && retries > retryLimit) {
+                cooldown = Math.max(cooldown, Math.min(5, retries));
+                retryTarget = null;
+                retries = 0;
+                return;
+            }
             int slot = findBlockSlot();
             if (slot < 0) return;
-            Placement placement = findPlacement(target, slot);
+            Placement placement = findPlacement(target);
             if (placement == null) continue;
             place(placement, slot);
             return; // At most one interaction per tick.
@@ -319,9 +326,7 @@ public final class Scaffold extends Module {
                 && block != Blocks.TNT && block != Blocks.CRAFTING_TABLE;
     }
 
-    private Placement findPlacement(BlockPos target, int slot) {
-        ItemStack stack = mc.player.inventory.getStackInSlot(slot);
-        ItemBlock item = (ItemBlock) stack.getItem();
+    private Placement findPlacement(BlockPos target) {
         Vec3d eyes = mc.player.getPositionEyes(1.0F);
         double reach = mc.playerController.getBlockReachDistance() - .1D;
         Placement best = null;
@@ -332,8 +337,9 @@ public final class Scaffold extends Module {
                     || inFlight.get(support).denied || !isPlaced(support))) continue;
             IBlockState state = mc.world.getBlockState(support);
             EnumFacing face = towardSupport.getOpposite();
-            if (!state.isSideSolid(mc.world, support, face) || state.getBlock().hasTileEntity(state)) continue;
-            if (!item.canPlaceBlockOnSide(mc.world, support, face, mc.player, stack)) continue;
+            if (state.getMaterial().isReplaceable() || state.getBlock().hasTileEntity(state)) continue;
+            // The controller and held ItemBlock validate the actual placement.
+            // Side-solid and preflight item checks reject valid slab/stair edges.
             Vec3d hit = InventoryBlocks.hitVec(support, face);
             double distance = eyes.squareDistanceTo(hit);
             if (distance > reach * reach) continue;
@@ -362,21 +368,20 @@ public final class Scaffold extends Module {
             unverified.add(target);
             EnumActionResult result = mc.playerController.processRightClickBlock(mc.player, mc.world,
                     placement.support, placement.face, placement.hit, EnumHand.MAIN_HAND);
-            if (result == EnumActionResult.SUCCESS) {
+            if (result == EnumActionResult.SUCCESS && isPlaced(target)) {
                 mc.player.swingArm(EnumHand.MAIN_HAND);
-                if (isPlaced(target)) {
-                    // The client already has the collision shape. A later server
-                    // correction will remove it and edge safety will react then.
-                    unverified.remove(target);
-                    inFlight.remove(target);
-                }
+                // The client already has the collision shape. A later server
+                // correction will remove it and edge safety will react then.
+                unverified.remove(target);
+                inFlight.remove(target);
             } else {
                 inFlight.remove(target);
                 unverified.remove(target);
                 retryTarget = placement.target.toImmutable();
                 ++retries;
+                cooldown = Math.max(cooldown, 1);
             }
-            cooldown = Math.max(actionDelay, ncpProfile != 0 ? 2 : 0);
+            cooldown = Math.max(cooldown, Math.max(actionDelay, ncpProfile != 0 ? 2 : 0));
         } finally {
             mc.player.inventory.currentItem = oldSlot;
             if (rotated && mc.getConnection() != null) {
