@@ -84,8 +84,8 @@ public final class Scaffold extends Module {
             return;
         }
         unverified.removeIf(pos -> !inFlight.containsKey(pos)
-                && (!mc.world.isBlockLoaded(pos) || isReplaceable(pos)
-                || pos.distanceSq(mc.player.posX, mc.player.posY, mc.player.posZ) > 1024D));
+                || !mc.world.isBlockLoaded(pos)
+                || pos.distanceSq(mc.player.posX, mc.player.posY, mc.player.posZ) > 1024D);
         if (mc.player.onGround) descentBaseY = MathHelper.floor(mc.player.getEntityBoundingBox().minY);
         updatePending();
         enforceSafety();
@@ -119,18 +119,21 @@ public final class Scaffold extends Module {
             BlockPos pos = entry.getKey();
             Attempt attempt = entry.getValue();
             if (!mc.world.isBlockLoaded(pos)) { iterator.remove(); continue; }
-            if (attempt.accepted && isPlaced(pos)) {
+            // Vanilla predicts successful block placement locally. Servers normally
+            // send a block update only to correct a rejected placement, so waiting
+            // for a positive packet makes normal bridging stall every timeout.
+            if (!attempt.denied && isPlaced(pos)) {
                 unverified.remove(pos);
                 iterator.remove();
                 if (pos.equals(retryTarget)) { retryTarget = null; retries = 0; }
                 continue;
             }
             if (attempt.denied || ++attempt.ticks >= Math.max(4, placementTimeout)) {
-                // A locally predicted block remains untrusted until the server corrects it.
                 iterator.remove();
                 retryTarget = pos;
                 retries++;
                 cooldown = Math.max(cooldown, 1);
+                unverified.remove(pos);
             }
         }
     }
@@ -143,6 +146,7 @@ public final class Scaffold extends Module {
         boolean solid = !state.getMaterial().isReplaceable() && state.isFullBlock();
         attempt.accepted = solid;
         attempt.denied = !solid;
+        if (!solid) unverified.add(pos);
     }
 
     @Override public void onInputUpdate(InputUpdateEvent event) {
@@ -163,8 +167,6 @@ public final class Scaffold extends Module {
         if (fraction < 1D) {
             input.moveForward *= fraction;
             input.moveStrafe *= fraction;
-            mc.player.motionX *= fraction;
-            mc.player.motionZ *= fraction;
         }
     }
 
@@ -172,15 +174,14 @@ public final class Scaffold extends Module {
         if (mc.player.isRiding() || mc.player.capabilities.isFlying) return;
         net.minecraft.util.MovementInput input = mc.player.movementInput;
         if (input == null) return;
-        AxisAlignedBB next = predictedBox(input.moveForward, input.moveStrafe);
+        AxisAlignedBB next = mc.player.getEntityBoundingBox().offset(mc.player.motionX, 0D, mc.player.motionZ);
         boolean descending = wantsDescent() && hasTrustedSupport(next, 1D);
         if (!descending) {
             AxisAlignedBB current = mc.player.getEntityBoundingBox();
             double fraction = safeMovementFraction(current, next.minX - current.minX, next.minZ - current.minZ);
             if (fraction < 1D) {
-                mc.player.motionX *= fraction;
-                mc.player.motionZ *= fraction;
-                MovementManager.requestHorizontalVelocity(this, mc.player.motionX, mc.player.motionZ, 1000);
+                MovementManager.requestHorizontalVelocity(this, mc.player.motionX * fraction,
+                        mc.player.motionZ * fraction, 1000);
             }
         }
         if (descending && !mc.player.onGround && hasTrustedSupport(mc.player.getEntityBoundingBox(), 1D)) {
@@ -218,7 +219,7 @@ public final class Scaffold extends Module {
         AxisAlignedBB probe = new AxisAlignedBB(box.minX + .03D, box.minY - drop - .13D,
                 box.minZ + .03D, box.maxX - .03D, box.minY - drop + .03D, box.maxZ - .03D);
         double covered = 0D;
-        double required = (probe.maxX - probe.minX) * (probe.maxZ - probe.minZ) * .4D;
+        double required = (probe.maxX - probe.minX) * (probe.maxZ - probe.minZ) * .15D;
         for (int x = MathHelper.floor(probe.minX); x <= MathHelper.floor(probe.maxX); ++x)
             for (int y = MathHelper.floor(probe.minY); y <= MathHelper.floor(probe.maxY); ++y)
                 for (int z = MathHelper.floor(probe.minZ); z <= MathHelper.floor(probe.maxZ); ++z) {
@@ -363,6 +364,12 @@ public final class Scaffold extends Module {
                     placement.support, placement.face, placement.hit, EnumHand.MAIN_HAND);
             if (result == EnumActionResult.SUCCESS) {
                 mc.player.swingArm(EnumHand.MAIN_HAND);
+                if (isPlaced(target)) {
+                    // The client already has the collision shape. A later server
+                    // correction will remove it and edge safety will react then.
+                    unverified.remove(target);
+                    inFlight.remove(target);
+                }
             } else {
                 inFlight.remove(target);
                 unverified.remove(target);
