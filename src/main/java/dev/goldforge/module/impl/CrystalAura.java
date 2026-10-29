@@ -25,6 +25,7 @@ import net.minecraft.init.MobEffects;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.CPacketPlayer;
+import net.minecraft.network.play.client.CPacketUseEntity;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
@@ -51,6 +52,7 @@ public final class CrystalAura extends Module {
     public int predictionTicks=2, selfPredictionTicks=1, healthReserve=2, damageRatio=0, protectFriends=1;
     public int retryTicks=2, retryLimit=3, acknowledgementTicks=4, maxPending=2, minCrystalAge=0;
     public int multiTask=1, maxTargets=4, renderDamage=1, debug=0;
+    public int instantBreak=1, placementsPerTick=2, targetPriority=1;
     private final CrystalActionTracker<Integer> breakAttempts = new CrystalActionTracker<Integer>();
     private final CrystalActionTracker<BlockPos> placeAttempts = new CrystalActionTracker<BlockPos>();
     private final Map<Vec3d, Evaluation> damageCache = new HashMap<Vec3d, Evaluation>();
@@ -60,7 +62,8 @@ public final class CrystalAura extends Module {
     private final List<EntityEnderCrystal> crystals = new ArrayList<EntityEnderCrystal>();
     private CrystalDamage.Snapshot self;
     private World activeWorld;
-    private long clientTicks, nextPlaceTick, nextBreakTick;
+    private long clientTicks, nextPlaceTick, nextBreakTick, breakBudgetTick=-1;
+    private int breaksThisTick;
     private EntityLivingBase renderTarget;
     private List<CrystalLabel> crystalLabels=Collections.emptyList();
     private long placeSends, breakSends, placeConfirms;
@@ -78,11 +81,14 @@ public final class CrystalAura extends Module {
         addIntSetting("Break walls range",0,6,1,()->breakWallsRange,v->breakWallsRange=v);
         addIntSetting("Target range",4,16,1,()->targetRange,v->targetRange=v);
         addIntSetting("Targets to evaluate",1,8,1,()->maxTargets,v->maxTargets=v);
+        addIntSetting("Target priority (0 Near, 1 Kill)",0,1,1,()->targetPriority,v->targetPriority=v);
         addIntSetting("Place delay (ticks)",0,20,1,()->placeDelay,v->placeDelay=v);
         addIntSetting("Break delay (ticks)",0,20,1,()->breakDelay,v->breakDelay=v);
         addIntSetting("Extra action delay (ticks)",0,10,1,()->actionDelay,v->actionDelay=v);
         addIntSetting("Break and place together",0,1,1,()->multiTask,v->multiTask=v);
+        addIntSetting("Break on crystal spawn",0,1,1,()->instantBreak,v->instantBreak=v);
         addIntSetting("Breaks per tick (HvH)",1,4,1,()->attacksPerTick,v->attacksPerTick=v);
+        addIntSetting("Places per tick (HvH)",1,4,1,()->placementsPerTick,v->placementsPerTick=v);
         addIntSetting("Break retry (ticks)",1,20,1,()->retryTicks,v->retryTicks=v);
         addIntSetting("Retry attempts before backoff",1,6,1,()->retryLimit,v->retryLimit=v);
         addIntSetting("Spawn timeout minimum (ticks)",2,40,1,()->acknowledgementTicks,v->acknowledgementTicks=v);
@@ -134,29 +140,28 @@ public final class CrystalAura extends Module {
         List<AttackPlan> attacks=planBreaks();
         List<CrystalLabel> labels=new ArrayList<CrystalLabel>();
         boolean attacked=false;
-        if(breaking!=0&&clientTicks>=nextBreakTick){
-            int budget=profile==0?1:attacksPerTick;
+        if(breaking!=0&&canBreakNow()){
+            int budget=(profile==0?1:attacksPerTick)-breaksThisTick;
             for(AttackPlan plan:attacks){
                 if(budget--<=0)break;
-                if(breakCrystal(plan)){
+                if(breakCrystal(plan,false)){
                     attacked=true;
                     renderTarget=plan.evaluation.target.player;
                     labels.add(new CrystalLabel(plan.crystal,null,plan.evaluation.damage,false));
                 }
             }
-            if(attacked)nextBreakTick=clientTicks+1+effectiveDelay(breakDelay);
         }
         // The controller retains crystals until the server removes them. Occupied bases remain blocked.
         PlacePlan placement=null;
         if(place!=0&&hasAvailableCrystals()){
-            placement=planPlacement();
-            if(placement!=null){
+            int budget=profile==0?1:placementsPerTick;
+            while(budget-->0&&clientTicks>=nextPlaceTick&&(!attacked||(profile==1&&multiTask!=0))
+                    &&placeAttempts.pending(clientTicks)<(profile==0?1:maxPending)){
+                placement=planPlacement();
+                if(placement==null)break;
                 if(renderTarget==null)renderTarget=placement.evaluation.target.player;
                 labels.add(new CrystalLabel(null,placement.base,placement.evaluation.damage,true));
-                if(clientTicks>=nextPlaceTick&&(!attacked||(profile==1&&multiTask!=0))
-                        &&placeAttempts.pending(clientTicks)<(profile==0?1:maxPending)){
-                    placeCrystal(placement);
-                }
+                if(!placeCrystal(placement))break;
             }
         }
         if(!attacked&&placement==null)state="No safe action";
@@ -167,12 +172,41 @@ public final class CrystalAura extends Module {
                 exposureCandidates,String.format(Locale.ROOT,"%.2f",(System.nanoTime()-start)/1_000_000D));
     }
 
+    /** Called on the client thread as soon as Forge adds the server-spawned crystal. */
+    public void onCrystalSpawn(EntityEnderCrystal crystal){
+        if(!enabled||instantBreak==0||breaking==0||minCrystalAge>0||mc.player==null||mc.world==null
+                ||mc.playerController==null||mc.getConnection()==null||activeWorld!=mc.world
+                ||crystal.world!=mc.world||mc.player.isDead||mc.player.getHealth()<=0F
+                ||mc.currentScreen!=null||(pauseUsing!=0&&mc.player.isHandActive())
+                ||(pauseMining!=0&&mc.playerController.getIsHittingBlock())||!canBreakNow()
+                ||!breakAttempts.ready(crystal.getEntityId(),clientTicks))return;
+        if(aimOnly!=0&&(mc.objectMouseOver==null||mc.objectMouseOver.entityHit!=crystal))return;
+        targets.clear();friends.clear();damageCache.clear();
+        collectTargets();
+        if(targets.isEmpty())return;
+        self=new CrystalDamage.Snapshot(mc.player,selfPredictionTicks);
+        Vec3d aim=breakAim(crystal);
+        if(aim==null)return;
+        Evaluation value=evaluate(crystal.getPositionVector());
+        if(value==null)return;
+        if(breakCrystal(new AttackPlan(crystal,aim,value),true)){
+            renderTarget=value.target.player;
+            state="Instant break";
+        }
+    }
+
+    private boolean canBreakNow(){
+        if(breakBudgetTick!=clientTicks){breakBudgetTick=clientTicks;breaksThisTick=0;}
+        return clientTicks>=nextBreakTick&&breaksThisTick<(profile==0?1:attacksPerTick);
+    }
+
     private void clampSettings(){
         profile=clamp(profile,0,1);actionDelay=clamp(actionDelay,0,10);
         placeRange=clamp(placeRange,2,6);breakRange=clamp(breakRange,2,6);targetRange=clamp(targetRange,4,16);
         placeWallsRange=clamp(placeWallsRange,0,placeRange);breakWallsRange=clamp(breakWallsRange,0,breakRange);
         placeDelay=clamp(placeDelay,0,20);breakDelay=clamp(breakDelay,0,20);
         attacksPerTick=clamp(attacksPerTick,1,4);maxTargets=clamp(maxTargets,1,8);maxPending=clamp(maxPending,1,4);
+        placementsPerTick=clamp(placementsPerTick,1,4);targetPriority=clamp(targetPriority,0,1);
         retryTicks=clamp(retryTicks,1,20);retryLimit=clamp(retryLimit,1,6);acknowledgementTicks=clamp(acknowledgementTicks,2,40);
         rotate=clamp(rotate,0,2);swapMode=clamp(swapMode,0,2);minCrystalAge=clamp(minCrystalAge,0,20);
         predictionTicks=clamp(predictionTicks,0,5);selfPredictionTicks=clamp(selfPredictionTicks,0,5);
@@ -206,8 +240,17 @@ public final class CrystalAura extends Module {
             if(friend&&friendFilter!=0)continue;
             if(mc.player.getDistanceSq(player)<=targetRange*targetRange)eligible.add(player);
         }
-        eligible.sort(Comparator.comparingDouble((EntityPlayer p)->mc.player.getDistanceSq(p)).thenComparingInt(Entity::getEntityId));
+        eligible.sort(Comparator.comparingDouble((EntityPlayer p)->targetSelectionScore(p)).thenComparingInt(Entity::getEntityId));
         for(int i=0;i<Math.min(maxTargets,eligible.size());i++)targets.add(new CrystalDamage.Snapshot(eligible.get(i),predictionTicks));
+    }
+
+    private double targetSelectionScore(EntityPlayer player){
+        double distance=Math.sqrt(mc.player.getDistanceSq(player));
+        if(targetPriority==0)return distance;
+        double actionable=Math.max(placeRange,breakRange)+2D;
+        double health=player.getHealth()+player.getAbsorptionAmount();
+        return distance+Math.min(40D,health)*.35D+player.getTotalArmorValue()*.12D
+                +(distance>actionable?20D:0D);
     }
 
     private Evaluation evaluate(Vec3d explosion){
@@ -222,11 +265,13 @@ public final class CrystalAura extends Module {
                 if(!CrystalMath.safe(value,friend.health,maxSelfDamage,healthReserve)){friendSafe=false;break;}
             }
             if(friendSafe)for(CrystalDamage.Snapshot target:targets){
+                double remaining=target.health-committedDamage.getOrDefault(target.player,0D);
+                if(remaining<=0D)continue;
                 double minimum=minimumDamage(target.player);
-                if(!CrystalMath.qualifies(target.maximumPossible(explosion),own,target.health,minimum,damageRatio/100D))continue;
+                if(!CrystalMath.qualifies(target.maximumPossible(explosion),own,remaining,minimum,damageRatio/100D))continue;
                 double dealt=target.damage(mc.world,explosion,true);
-                if(!CrystalMath.qualifies(dealt,own,target.health,minimum,damageRatio/100D))continue;
-                double score=CrystalMath.score(dealt,own,target.health,self.position.distanceTo(explosion));
+                if(!CrystalMath.qualifies(dealt,own,remaining,minimum,damageRatio/100D))continue;
+                double score=CrystalMath.score(dealt,own,remaining,self.position.distanceTo(explosion));
                 if(best==null||score>best.score)best=new Evaluation(target,dealt,own,score);
             }
         }
@@ -254,12 +299,22 @@ public final class CrystalAura extends Module {
         double reach=Math.min(placeRange,mc.playerController.getBlockReachDistance());
         BlockPos origin=new BlockPos(eye);
         int radius=(int)Math.ceil(reach);
+        // Only terrain near a target's feet can yield useful 1.12.2 crystal damage.
+        // This avoids sweeping the full three-dimensional reach cube each tick.
+        Set<Integer> levels=new LinkedHashSet<Integer>();
+        for(CrystalDamage.Snapshot target:targets){
+            addCandidateLevels(levels,target.position.y,origin.getY(),radius);
+            addCandidateLevels(levels,target.predictedPosition.y,origin.getY(),radius);
+        }
         PlacePlan best=null;
-        for(BlockPos mutable:BlockPos.getAllInBox(origin.add(-radius,-radius-1,-radius),origin.add(radius,radius,radius))){
-            BlockPos base=mutable.toImmutable();
+        for(int x=origin.getX()-radius;x<=origin.getX()+radius;x++)
+          for(int z=origin.getZ()-radius;z<=origin.getZ()+radius;z++)
+           for(int y:levels){
+            BlockPos base=new BlockPos(x,y,z);
             Vec3d center=new Vec3d(base.getX()+.5D,base.getY()+1D,base.getZ()+.5D);
             // Reject out-of-reach cubes before damage density ray sampling.
             if(eye.squareDistanceTo(center)>(reach+.75D)*(reach+.75D))continue;
+            if(!mightDamageTarget(center))continue;
             if(!placeAttempts.ready(base,clientTicks)||!validBase(base))continue;
             PlacementHit hit=placementHit(base);
             if(hit==null)continue;
@@ -267,9 +322,26 @@ public final class CrystalAura extends Module {
             if(value==null)continue;
             if(best==null||value.score>best.evaluation.score
                     ||(value.score==best.evaluation.score&&base.toLong()<best.base.toLong()))
-                best=new PlacePlan(base,value);
+                best=new PlacePlan(base,value,hit);
         }
         return best;
+    }
+
+    private void addCandidateLevels(Set<Integer> levels,double targetY,int originY,int radius){
+        int feet=MathHelper.floor(targetY);
+        for(int y=feet-4;y<=feet+1;y++)
+            if(y>=originY-radius-1&&y<=originY+radius)levels.add(y);
+    }
+
+    private boolean mightDamageTarget(Vec3d explosion){
+        for(CrystalDamage.Snapshot target:targets){
+            double remaining=target.health-committedDamage.getOrDefault(target.player,0D);
+            if(remaining>0D){
+                double possible=target.maximumPossible(explosion);
+                if(possible>=remaining||possible>=minimumDamage(target.player))return true;
+            }
+        }
+        return false;
     }
 
     private boolean validBase(BlockPos base){
@@ -320,10 +392,11 @@ public final class CrystalAura extends Module {
         return walls>0D&&mc.player.getDistanceSq(crystal)<walls*walls&&eye.squareDistanceTo(closest)<=walls*walls?closest:null;
     }
 
-    private boolean breakCrystal(AttackPlan plan){
+    private boolean breakCrystal(AttackPlan plan,boolean newlySpawned){
         EntityEnderCrystal crystal=plan.crystal;
-        if(crystal.isDead||mc.world.getEntityByID(crystal.getEntityId())!=crystal||breakAim(crystal)==null)return false;
+        if(crystal.isDead||!newlySpawned&&mc.world.getEntityByID(crystal.getEntityId())!=crystal)return false;
         if(!validTarget(plan.evaluation.target.player))return false;
+        if(committedDamage.getOrDefault(plan.evaluation.target.player,0D)>=plan.evaluation.target.health)return false;
         if(!safeAfterCommitted(crystal.getPositionVector()))return false;
         int previous=mc.player.inventory.currentItem, selected=previous;
         if(!canBreakWith(mc.player.getHeldItemMainhand())){
@@ -335,39 +408,45 @@ public final class CrystalAura extends Module {
         try{
             selectSlot(selected);
             if(!aim(plan.aim))return false;
-            mc.playerController.attackEntity(mc.player,crystal);
-            recordCommitted(crystal.getPositionVector());
+            if(newlySpawned){
+                // EntityJoinWorldEvent fires before the client inserts the entity.
+                // The server ID is already valid; avoid local damage on an unregistered entity.
+                if(!PacketManager.send(new CPacketUseEntity(crystal),name))return false;
+            }else mc.playerController.attackEntity(mc.player,crystal);
+            recordCommitted(crystal.getPositionVector(),plan.evaluation);
             mc.player.swingArm(EnumHand.MAIN_HAND);
             breakAttempts.sent(crystal.getEntityId(),clientTicks,retryTicks,retryLimit,confirmationTimeout()+10);
-            breakSends++;state="Breaking";return true;
+            breakSends++;breaksThisTick++;
+            nextBreakTick=clientTicks+effectiveDelay(breakDelay);
+            damageCache.clear();state="Breaking";return true;
         }finally{restoreAim();if(swapMode==2)selectSlot(previous);}
     }
 
-    private void placeCrystal(PlacePlan plan){
-        if(!validBase(plan.base)||!validTarget(plan.evaluation.target.player))return;
-        PlacementHit hit=placementHit(plan.base);
-        if(hit==null)return;
+    private boolean placeCrystal(PlacePlan plan){
+        if(!validBase(plan.base)||!validTarget(plan.evaluation.target.player))return false;
+        PlacementHit hit=plan.hit;
         Vec3d explosion=new Vec3d(plan.base).addVector(.5D,1D,.5D);
-        if(!safeAfterCommitted(explosion))return;
+        if(!safeAfterCommitted(explosion))return false;
         int previous=mc.player.inventory.currentItem;
         int selected=previous;
         EnumHand hand=crystalHand();
         if(hand==null){
-            if(swapMode==0)return;
+            if(swapMode==0)return false;
             int slot=InventoryManager.findItemInHotbar(mc,Items.END_CRYSTAL);
-            if(slot<0)return;
+            if(slot<0)return false;
             selected=slot;hand=EnumHand.MAIN_HAND;
         }
         try{
             selectSlot(selected);
-            if(mc.player.getHeldItem(hand).getItem()!=Items.END_CRYSTAL||!aim(hit.point))return;
+            if(mc.player.getHeldItem(hand).getItem()!=Items.END_CRYSTAL||!aim(hit.point))return false;
             EnumActionResult result=mc.playerController.processRightClickBlock(mc.player,mc.world,plan.base,hit.face,hit.point,hand);
             // Even a rejected interaction is paced. SUCCESS is only a sent attempt, never a server acknowledgement.
-            nextPlaceTick=clientTicks+1+effectiveDelay(placeDelay);
+            nextPlaceTick=clientTicks+effectiveDelay(placeDelay);
             placeAttempts.sent(plan.base,clientTicks,result==EnumActionResult.SUCCESS?confirmationTimeout():retryTicks,
                     retryLimit,confirmationTimeout()+10);
-            if(result==EnumActionResult.SUCCESS){recordCommitted(explosion);mc.player.swingArm(hand);placeSends++;state="Awaiting spawn";}
+            if(result==EnumActionResult.SUCCESS){recordCommitted(explosion,plan.evaluation);damageCache.clear();mc.player.swingArm(hand);placeSends++;state="Awaiting spawn";}
             else state="Placement rejected";
+            return result==EnumActionResult.SUCCESS;
         }finally{restoreAim();if(swapMode==2)selectSlot(previous);}
     }
 
@@ -382,8 +461,9 @@ public final class CrystalAura extends Module {
                     friend.health,maxSelfDamage,healthReserve))return false;
         return true;
     }
-    private void recordCommitted(Vec3d explosion){
+    private void recordCommitted(Vec3d explosion,Evaluation evaluation){
         committedDamage.merge(self.player,worstDamage(self,explosion),Double::sum);
+        committedDamage.merge(evaluation.target.player,evaluation.damage,Double::sum);
         for(CrystalDamage.Snapshot friend:friends)
             committedDamage.merge(friend.player,worstDamage(friend,explosion),Double::sum);
     }
@@ -448,7 +528,7 @@ public final class CrystalAura extends Module {
     private static int clamp(int value,int min,int max){return Math.max(min,Math.min(max,value));}
     private void reset(){
         breakAttempts.clear();placeAttempts.clear();damageCache.clear();committedDamage.clear();targets.clear();friends.clear();crystals.clear();
-        activeWorld=null;self=null;clientTicks=0;nextPlaceTick=0;nextBreakTick=0;
+        activeWorld=null;self=null;clientTicks=0;nextPlaceTick=0;nextBreakTick=0;breakBudgetTick=-1;breaksThisTick=0;
         renderTarget=null;crystalLabels=Collections.emptyList();placeSends=breakSends=placeConfirms=0;state="Idle";
     }
     @Override protected void onEnable(){reset();}
@@ -469,8 +549,8 @@ public final class CrystalAura extends Module {
         PlacementHit(EnumFacing face,Vec3d point){this.face=face;this.point=point;}
     }
     private static final class PlacePlan{
-        final BlockPos base;final Evaluation evaluation;
-        PlacePlan(BlockPos base,Evaluation evaluation){this.base=base;this.evaluation=evaluation;}
+        final BlockPos base;final Evaluation evaluation;final PlacementHit hit;
+        PlacePlan(BlockPos base,Evaluation evaluation,PlacementHit hit){this.base=base;this.evaluation=evaluation;this.hit=hit;}
     }
 
     @Override public void render(float partialTicks){

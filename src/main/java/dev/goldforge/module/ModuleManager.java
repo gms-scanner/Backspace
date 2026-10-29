@@ -14,6 +14,7 @@ import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.RenderPlayer;
@@ -74,6 +75,14 @@ public final class ModuleManager {
             MovementManager.commitClientTick();
             MovementReplay.tick();
         }
+    }
+    @SubscribeEvent public void crystalSpawn(EntityJoinWorldEvent event){
+        if(!(event.getEntity() instanceof net.minecraft.entity.item.EntityEnderCrystal)
+                ||event.getWorld()!=Minecraft.getMinecraft().world)return;
+        final Module module=get("CrystalAura");
+        if(module instanceof CrystalAura&&module.enabled&&!module.isSuspended())
+            safe(module,"spawn-break",()->((CrystalAura)module).onCrystalSpawn(
+                    (net.minecraft.entity.item.EntityEnderCrystal)event.getEntity()));
     }
     @SubscribeEvent public void render(RenderWorldLastEvent event) {
         for (final Module m : modules) if (m.enabled&&!m.isSuspended()) {
