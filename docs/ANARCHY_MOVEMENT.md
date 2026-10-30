@@ -21,19 +21,19 @@ The [Forge 1.12.2 NetHandlerPlayServer API](https://nekoyue.github.io/ForgeJavaD
 | Phase | Existing movement probes and pearl mode | Existing, experimentally unverified |
 | BoatPhase | Existing local boat collision flag | Client-side only; server replication unsupported |
 | PearlPhase | Existing Phase mode 5 | Implemented through existing module; server result unverified |
-| Burrow | — | Not implemented; needs placement and server block confirmation |
-| EntityDesync | — | Not implemented; requires safe mount state resynchronization |
+| Burrow | One-shot obsidian packet placement; observes block updates and position corrections | Implemented, experimentally unverified |
+| EntityDesync | Local detach, server passenger packet observation, remount request | Implemented, experimentally unverified |
 | NoFall | Existing outgoing onGround rewrite | Existing, server damage outcome unverified |
 | ElytraFly | Existing control and packet modes | Existing, server acceptance unverified |
-| AntiVoid | — | Not implemented; no validated server recovery method |
+| AntiVoid | Support scan, Elytra start request, optional low-Y disconnect | Implemented; server recovery unverified |
 | Blink | Bounded queue; flush on disable | Implemented, experimentally unverified |
-| PacketMine | — | Not implemented; AutoMine/AutoCity use the normal controller |
+| PacketMine | Single-target start/stop packets with bounded retries and block-update observation | Implemented, experimentally unverified |
 | FastBreak | Existing controller progress boost | Existing, server break result unverified |
 | FastUse | Existing client right-click repeat reduction | Existing, server item-use outcome unverified |
 | XCarry | Existing CraftCarry window-zero behavior | Existing limited equivalent; server dependent |
-| MultiTask | — | Not implemented; needs interaction sequencing tests |
-| NoRotate | — | Not implemented; requires rotation correction handling without losing teleport confirmation |
-| AntiHunger | — | Not implemented; requires server exhaustion measurements |
+| MultiTask | Bounded use action while mining, with block use opt-in | Implemented, experimentally unverified |
+| NoRotate | Rewrites only server rotation fields; vanilla still confirms teleport | Implemented, experimentally unverified |
+| AntiHunger | Switches from sprinting to walking below a configurable food level | Implemented as ordinary movement; exhaustion reduction unmeasured |
 | Movement conflict manager | Priority by active riding/elytra state | Implemented; disables competing controllers |
 | ReplicationDebug | Local/requested/inbound position HUD | Implemented; observer-client verification still needed |
 | Surround | Footprint ring, floor repair, safe inventory selection | Implemented; live placement test still needed |
@@ -49,3 +49,13 @@ No specific server has been tested for unsupported or accepted modes. The server
 5. Mark a mode server accepted only if the observer sees sustained movement and the server retains it after normal synchronization and reconnect.
 
 The current build was compiled and the CrystalAura, NCP passability, and LavaCast harnesses passed. These harnesses do not simulate a multiplayer server or observing client.
+
+## Using the added modules
+
+- **Burrow:** Put obsidian in the hotbar or inventory and stand on a full block with two blocks of headroom. Enable it to make one placement attempt. Toggle off and on to retry. Its HUD separates a block update from a player-position correction; neither alone proves the final combined state.
+- **EntityDesync:** Mount a vehicle, then enable it. The HUD initially says the server passenger state is unknown until a passenger packet arrives. Disable to request remount. This mode intentionally changes local mount state and is not a server flight mode.
+- **AntiVoid:** Select warning, Elytra, or Elytra plus disconnect. Elytra recovery requires a worn Elytra and remains subject to server acceptance. Disconnect is a last resort and cannot guarantee survival.
+- **PacketMine:** Aim at a block without holding attack. PacketMine pauses if manual attack, AutoMine, or AutoCity is active. It waits for a block update or a local air state and retries within configured limits.
+- **MultiTask:** Hold use while the normal controller is mining. Food and potions are enabled by default; block use is opt-in.
+- **NoRotate:** Preserves the local camera angle on `SPacketPlayerPosLook` while leaving position and teleport ID intact.
+- **AntiHunger:** Walks instead of sprinting below the configured food level. It does not suppress jumping or other exhaustion sources.

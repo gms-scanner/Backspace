@@ -2,6 +2,13 @@
 
 ## Unreleased movement and Surround work — 2026-10-30
 
+- Added Burrow's one-shot obsidian placement attempt with separate server block and position observations.
+- Added EntityDesync's local detach, passenger-packet state, and remount request on disable.
+- Added AntiVoid's bounded support scan, Elytra recovery requests, and optional low-Y disconnect.
+- Added PacketMine with hardness-based start/stop timing, retries, and server block-update confirmation.
+- Added MultiTask's bounded item-use action during mining.
+- Added NoRotate's server position packet rewrite that retains teleport acknowledgement.
+- Added AntiHunger's low-food walking profile.
 - Rebuilt Surround target selection around the player's actual footprint, including floor repair and supported side placement. It now prioritizes obsidian and ender chests and restores the selected hotbar item.
 - Added experimental BoatFly and EntityFly with motion, packet, glide, mounting, speed, acceleration, packet interval, Y lock, and server vehicle-correction counters.
 - Added a movement conflict manager that gives one active controller ownership and disables competing movement modules.
