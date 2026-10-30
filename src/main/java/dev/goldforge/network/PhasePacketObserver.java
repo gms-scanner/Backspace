@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.client.CPacketPlayer;
 import net.minecraft.network.play.server.SPacketPlayerPosLook;
+import net.minecraft.network.play.server.SPacketMoveVehicle;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
 import net.minecraft.network.play.server.SPacketExplosion;
 import net.minecraft.network.play.server.SPacketBlockChange;
@@ -28,6 +29,10 @@ import dev.goldforge.module.impl.RecentSurroundBlocks;
 import dev.goldforge.module.impl.BreakESP;
 import dev.goldforge.module.impl.PopChams;
 import dev.goldforge.module.impl.LogoutSpots;
+import dev.goldforge.module.impl.BoatFly;
+import dev.goldforge.module.impl.EntityFly;
+import dev.goldforge.module.impl.ReplicationDebug;
+import dev.goldforge.module.impl.Blink;
 
 /** Read-only observer for server position corrections, used by Phase diagnostics. */
 public final class PhasePacketObserver {
@@ -98,12 +103,29 @@ public final class PhasePacketObserver {
                         Runnable capture=new Runnable(){@Override public void run(){
                             if(record!=null)Phase.captureCorrectionClientPreApply(record);
                             if(packetFlyRecord!=null)PacketFlyLab.captureCorrectionPreApply(packetFlyRecord);
+                            if(client.player!=null)ReplicationDebug.playerPosition(packet,
+                                    client.player.posX,client.player.posY,client.player.posZ);
+                            dev.goldforge.module.Module packetFly=dev.goldforge.GoldForge.MODULES.get("PacketFly");
+                            if(packetFly instanceof dev.goldforge.module.impl.PacketFly)
+                                ((dev.goldforge.module.impl.PacketFly)packetFly).onServerCorrection(packet);
                             dev.goldforge.module.impl.Speed.onServerCorrection();
                         }};
                         // Queue correction resets before packet_handler queues application
                         // of the S08 packet, preserving the existing client-thread ordering.
                         if(client.isCallingFromMinecraftThread())capture.run();
                         else client.addScheduledTask(capture);
+                    }
+                    if(message instanceof SPacketMoveVehicle){
+                        final SPacketMoveVehicle packet=(SPacketMoveVehicle)message;
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable capture=()->{
+                            dev.goldforge.module.Module boat=dev.goldforge.GoldForge.MODULES.get("BoatFly");
+                            dev.goldforge.module.Module entity=dev.goldforge.GoldForge.MODULES.get("EntityFly");
+                            if(boat instanceof BoatFly)((BoatFly)boat).onServerCorrection(packet);
+                            if(entity instanceof EntityFly)((EntityFly)entity).onServerCorrection(packet);
+                            ReplicationDebug.vehiclePosition(packet);
+                        };
+                        if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
                     }
                     if(message instanceof SPacketEntityVelocity){
                         // Only retain the packet's primitive id on Netty. Player/module
@@ -174,9 +196,13 @@ public final class PhasePacketObserver {
                     if(message instanceof CPacketPlayer){
                         message=NoFall.rewrite((CPacketPlayer)message);
                         message=GroundSpoof.rewrite((CPacketPlayer)message);
+                    }
+                    if(Blink.intercept(message,context,promise))return;
+                    if(message instanceof CPacketPlayer){
                         Phase.recordOutgoingMovement((CPacketPlayer)message);
                         PacketFlyLab.recordOutbound((CPacketPlayer)message);
                     }
+                    ReplicationDebug.outgoing(message);
                     super.write(context,message,promise);
                 }
             });

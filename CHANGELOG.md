@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased movement and Surround work — 2026-10-30
+
+- Rebuilt Surround target selection around the player's actual footprint, including floor repair and supported side placement. It now prioritizes obsidian and ender chests and restores the selected hotbar item.
+- Added experimental BoatFly and EntityFly with motion, packet, glide, mounting, speed, acceleration, packet interval, Y lock, and server vehicle-correction counters.
+- Added a movement conflict manager that gives one active controller ownership and disables competing movement modules.
+- Added bounded Blink movement queuing and ordered flush on disable.
+- Added ReplicationDebug HUD showing local/requested coordinates, inbound position packets, and packet counts.
+- Added PacketFly correction cooldown, packet interval, and explicit direct, motion, and pulse modes.
+- Documented unverified modes and outstanding modules in [movement status](docs/ANARCHY_MOVEMENT.md).
+
 ## dev-4.0.4-beta 2026-10-25
 
 - Fixed the right-click ClickGUI crash: LWJGL 2 requires a 16-element buffer for scissor-state reads in both GUI renderers.
