@@ -2,10 +2,10 @@
 
 ## OneConfig
 
-Backspace uses and redistributes `libs/OneConfig-1.12.2-forge.jar` for its
+Backspace uses OneConfig for its
 NanoVG interface, font rendering, input layer, and blur support. OneConfig is
-distributed under the MIT License. Its original license files remain inside the
-bundled jar.
+distributed under LGPL 3.0 with additional terms. Download the Forge 1.12.2 JAR separately from
+[Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge).
 
 ## Inter
 
