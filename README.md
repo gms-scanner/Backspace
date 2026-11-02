@@ -46,10 +46,10 @@ The module browser uses compact vanilla-style category columns and pixel toggles
 ## Installation
 
 1. Install Minecraft **1.12.2** with Forge **14.23.5.2859**.
-2. Download both files from the release:
+2. Download Backspace from the release and OneConfig for Forge 1.12.2 from [Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge):
 
    * `backspace-dev-4.0.4-beta.jar`
-   * `OneConfig-1.12.2-forge.jar`
+   * The OneConfig Forge 1.12.2 JAR
 3. Place both JAR files in your `.minecraft/mods` folder.
 4. Launch Minecraft using **Java 8**.
 5. Press <kbd>Right Shift</kbd> or type `/backspace` in-game to open the client.
@@ -62,6 +62,7 @@ Want to build Backspace yourself or make changes to the code? You'll need:
 
 * JDK 8
 * An internet connection for the initial ForgeGradle dependency download
+* The OneConfig Forge 1.12.2 JAR from [Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge), saved as `libs/OneConfig-1.12.2-forge.jar`
 
 Open a terminal in the project directory and run the command for your operating system.
 
