@@ -26,7 +26,5 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# Keep the only required, redistributed build dependency. The unused EriAPI
-# jar stays local and is intentionally absent from source control.
+# Download OneConfig separately for local builds; do not commit dependency jars.
 /libs/*
-!/libs/OneConfig-1.12.2-forge.jar
