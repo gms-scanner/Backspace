@@ -72,6 +72,7 @@ public final class CrystalAura extends Module {
 
     public CrystalAura() {
         super("CrystalAura","Predicts crystal damage and independently places and breaks with confirmed retries.",Category.COMBAT,0);
+        addEntitySelection(false);
         addIntSetting("Profile (0 Strict, 1 HvH)",0,1,1,()->profile,v->profile=v);
         addIntSetting("Place crystals",0,1,1,()->place,v->place=v);
         addIntSetting("Break crystals",0,1,1,()->breaking,v->breaking=v);
@@ -239,7 +240,7 @@ public final class CrystalAura extends Module {
             if(friend&&protectFriends!=0&&mc.player.getDistanceSq(player)<=324D)
                 friends.add(new CrystalDamage.Snapshot(player,selfPredictionTicks));
             if(friend&&friendFilter!=0)continue;
-            if(mc.player.getDistanceSq(player)<=targetRange*targetRange)eligible.add(player);
+            if(acceptsEntity(player)&&mc.player.getDistanceSq(player)<=targetRange*targetRange)eligible.add(player);
         }
         eligible.sort(Comparator.comparingDouble((EntityPlayer p)->targetSelectionScore(p)).thenComparingInt(Entity::getEntityId));
         for(int i=0;i<Math.min(maxTargets,eligible.size());i++)targets.add(new CrystalDamage.Snapshot(eligible.get(i),predictionTicks));

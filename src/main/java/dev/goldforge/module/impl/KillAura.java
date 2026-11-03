@@ -20,11 +20,11 @@ public final class KillAura extends Module {
 
     public KillAura(){
         super("KillAura","Attacks the visible crosshair target; supports modern and legacy 1.8 attack timing.",Category.COMBAT,0);
+        addEntitySelection(true);
         addIntSetting("Combat model (0 Modern, 1 Legacy 1.8)",0,1,1,()->combatMode,v->combatMode=v);
         addIntSetting("Legacy attack rate (CPS)",1,10,1,()->attacksPerSecond,v->attacksPerSecond=v);
         addIntSetting("Vanilla attack range",2,3,1,()->range,v->range=v);
         addIntSetting("Extra delay (ticks)",0,10,1,()->attackDelay,v->attackDelay=v);
-        addIntSetting("Targets (0 players, 1 hostiles too)",0,1,1,()->targets,v->targets=v);
         addIntSetting("Camera aim assistance (0/1)",0,1,1,()->rotate,v->rotate=v);
     }
 
@@ -67,7 +67,7 @@ public final class KillAura extends Module {
         for(Entity entity:mc.world.loadedEntityList){
             if(!(entity instanceof EntityLivingBase)||entity==mc.player||entity.isDead)continue;
             EntityLivingBase living=(EntityLivingBase)entity;
-            if(living.getHealth()<=0F||!isTarget(living))continue;
+            if(living.getHealth()<=0F||!acceptsEntity(living))continue;
             if(living instanceof EntityPlayer&&FriendManager.isFriend(living.getName()))continue;
             double distance=mc.player.getDistanceSq(living);
             if(distance>bestDistance)continue;

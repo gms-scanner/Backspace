@@ -19,6 +19,7 @@ public final class AutoTrap extends Module {
 
     public AutoTrap(){
         super("AutoTrap","Places a supported obsidian cage around a nearby player.",Category.COMBAT,0);
+        addEntitySelection(false);
         addIntSetting("Target range",2,6,1,()->targetRange,v->targetRange=v);
         addIntSetting("Blocks per tick",1,4,1,()->blocksPerTick,v->blocksPerTick=v);
         addIntSetting("Ignore friends (0/1)",0,1,1,()->friendFilter,v->friendFilter=v);
@@ -59,6 +60,7 @@ public final class AutoTrap extends Module {
     private EntityPlayer nearestTarget(){
         EntityPlayer best=null;double nearest=Double.MAX_VALUE;double reach=Math.min(targetRange,mc.playerController.getBlockReachDistance());
         for(EntityPlayer player:mc.world.playerEntities){
+            if(!acceptsEntity(player))continue;
             if(player==mc.player||player.isDead||player.getHealth()<=0F||player.isSpectator())continue;
             if(friendFilter!=0&&FriendManager.isFriend(player.getName()))continue;
             double distance=mc.player.getDistanceSq(player);if(distance>reach*reach||distance>=nearest)continue;

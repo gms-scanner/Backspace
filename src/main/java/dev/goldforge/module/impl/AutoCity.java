@@ -29,6 +29,7 @@ public final class AutoCity extends Module {
 
     public AutoCity(){
         super("AutoCity","Mines a reachable obsidian or ender-chest block beside the nearest player.",Category.COMBAT,0);
+        addEntitySelection(false);
         addIntSetting("Target range",2,6,1,()->targetRange,v->targetRange=v);
         addIntSetting("Ignore friends (0/1)",0,1,1,()->friendFilter,v->friendFilter=v);
         addIntSetting("Select best tool (0/1)",0,1,1,()->autoTool,v->autoTool=v);
@@ -119,6 +120,7 @@ public final class AutoCity extends Module {
     private EntityPlayer nearestTarget(){
         EntityPlayer best=null;double bestDistance=Double.MAX_VALUE;double range=Math.min(targetRange,mc.playerController.getBlockReachDistance());
         for(EntityPlayer candidate:mc.world.playerEntities){
+            if(!acceptsEntity(candidate))continue;
             if(candidate==mc.player||candidate.isDead||candidate.getHealth()<=0F||candidate.isSpectator())continue;
             if(friendFilter!=0&&FriendManager.isFriend(candidate.getName()))continue;
             double distance=mc.player.getDistanceSq(candidate);if(distance>range*range||distance>=bestDistance)continue;

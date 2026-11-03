@@ -17,6 +17,9 @@ public abstract class Module {
     public final Category category;
     public boolean enabled;
     public int key;
+    public int targetPlayers=1,targetHostiles=0,targetAnimals=0;
+    public String targetNames="";
+    private boolean entitySelection;
     private boolean suspended;
     private final List<ModuleSetting> settings = new ArrayList<ModuleSetting>();
     protected Module(String name, String description, Category category, int key) {
@@ -69,6 +72,31 @@ public abstract class Module {
     protected final void addDoubleSetting(String name,double min,double max,double step,
                                           DoubleSupplier getter,DoubleConsumer setter) {
         settings.add(new ModuleSetting(name,min,max,step,getter,setter));
+    }
+    protected final void addEntitySelection(boolean livingTypes){
+        entitySelection=true;
+        addIntSetting("Target players",0,1,1,()->targetPlayers,v->targetPlayers=v);
+        if(livingTypes){
+            addIntSetting("Target hostiles",0,1,1,()->targetHostiles,v->targetHostiles=v);
+            addIntSetting("Target animals",0,1,1,()->targetAnimals,v->targetAnimals=v);
+        }
+    }
+    public final boolean supportsEntitySelection(){return entitySelection;}
+    public final boolean acceptsEntity(net.minecraft.entity.Entity entity){
+        if(entity==null||entity==mc.player||entity.isDead)return false;
+        if(entity instanceof net.minecraft.entity.player.EntityPlayer){
+            if(targetPlayers==0)return false;
+        }else if(entity instanceof net.minecraft.entity.monster.IMob){
+            if(targetHostiles==0)return false;
+        }else if(entity instanceof net.minecraft.entity.EntityCreature
+                ||entity instanceof net.minecraft.entity.passive.EntityAnimal
+                ||entity instanceof net.minecraft.entity.passive.EntityWaterMob
+                ||entity instanceof net.minecraft.entity.passive.EntityAmbientCreature){
+            if(targetAnimals==0)return false;
+        }else return false;
+        if(targetNames==null||targetNames.trim().isEmpty())return true;
+        for(String name:targetNames.split(","))if(name.trim().equalsIgnoreCase(entity.getName()))return true;
+        return false;
     }
     public final List<ModuleSetting> getSettings() { return Collections.unmodifiableList(settings); }
 }

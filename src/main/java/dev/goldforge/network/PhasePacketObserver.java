@@ -115,6 +115,9 @@ public final class PhasePacketObserver {
                                 ((dev.goldforge.module.impl.PacketFly)packetFly).onServerCorrection(packet);
                             dev.goldforge.module.Module burrow=dev.goldforge.GoldForge.MODULES.get("Burrow");
                             if(burrow instanceof Burrow)((Burrow)burrow).onServerCorrection(packet);
+                            dev.goldforge.module.Module pearlPhase=dev.goldforge.GoldForge.MODULES.get("Phase");
+                            if(pearlPhase instanceof Phase)
+                                ((Phase)pearlPhase).observePearlPosition();
                             dev.goldforge.module.impl.Speed.onServerCorrection();
                         }};
                         // Queue correction resets before packet_handler queues application

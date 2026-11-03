@@ -17,12 +17,12 @@ public final class MovementConflictManager {
         Entity riding=mc.player.getRidingEntity();
         String[] priority;
         if(riding instanceof EntityBoat)
-            priority=new String[]{"BoatFly","PacketFly","ElytraFly","Phase","Speed","Step"};
+            priority=new String[]{"BoatFly","Flight","PacketFly","ElytraFly","Phase","Speed","Step"};
         else if(riding instanceof AbstractHorse||riding instanceof EntityPig)
-            priority=new String[]{"EntityFly","PacketFly","ElytraFly","Phase","Speed","Step"};
+            priority=new String[]{"EntityFly","Flight","PacketFly","ElytraFly","Phase","Speed","Step"};
         else if(mc.player.isElytraFlying())
-            priority=new String[]{"ElytraFly","PacketFly","Phase","Speed","Step"};
-        else priority=new String[]{"PacketFly","Phase","Speed","Step"};
+            priority=new String[]{"Flight","ElytraFly","PacketFly","Phase","Speed","Step"};
+        else priority=new String[]{"Flight","PacketFly","ElytraFly","Phase","Speed","Step"};
         String winner=null;
         for(String name:priority){
             Module module=find(modules,name);

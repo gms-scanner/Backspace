@@ -19,6 +19,7 @@ public final class ShieldBreak extends Module {
 
     public ShieldBreak() {
         super("ShieldBreak", "Uses an axe to trigger vanilla shield disable, or waits for a rear-angle hit.", Category.COMBAT, 0);
+        addEntitySelection(false);
         addIntSetting("Mode (0 axe, 1 rear, 2 auto)", 0, 2, 1, () -> mode, v -> mode = v);
         addIntSetting("Minimum attack strength (%)", 10, 100, 5, () -> minimumStrength, v -> minimumStrength = v);
         addIntSetting("Rear angle threshold (%)", -100, 100, 10, () -> rearDot, v -> rearDot = v);
@@ -33,6 +34,7 @@ public final class ShieldBreak extends Module {
         RayTraceResult hit = mc.objectMouseOver;
         if (hit == null || hit.typeOfHit != RayTraceResult.Type.ENTITY || !(hit.entityHit instanceof EntityPlayer)) return;
         EntityPlayer target = (EntityPlayer) hit.entityHit;
+        if(!acceptsEntity(target))return;
         if (target == mc.player || target.isDead || target.getHealth() <= 0F || target.isSpectator()) return;
         if (friendFilter != 0 && FriendManager.isFriend(target.getName())) return;
 

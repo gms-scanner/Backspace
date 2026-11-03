@@ -10,6 +10,7 @@ import dev.goldforge.module.ModuleSetting;
 import dev.goldforge.module.impl.*;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import org.lwjgl.BufferUtils;
@@ -41,6 +42,13 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     private int activeSliderX, activeSliderWidth;
     private float frameSeconds;
     private long lastFrame;
+    private static final int SEARCH_W = 174, SEARCH_H = 52, SEARCH_TAB_W = 76, SEARCH_TAB_H = 18;
+    private GuiTextField searchField;
+    private boolean searchOpen = true, searchDragging;
+    private int searchX = -1, searchY = -1, dragX, dragY;
+    private float searchDrawX = Float.NaN, searchDrawY = Float.NaN;
+    private float searchExpansion = 1F;
+    private long searchChangedAt = System.nanoTime();
 
     private static final class Marquee {
         float offset, timer;
@@ -50,14 +58,32 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     public PixelClickGui() { this(null); }
     public PixelClickGui(GuiScreen parent) { this.parent = parent; }
 
-    @Override public void initGui() { BlurHandler.INSTANCE.reloadBlur(this); }
+    @Override public void initGui() {
+        BlurHandler.INSTANCE.reloadBlur(this);
+        if (searchX < 0) searchX = Math.max(8, width - SEARCH_W - 10);
+        if (searchY < 0) searchY = Math.max(TOP + HEADER + 8, height - SEARCH_H - 46);
+        searchX = Math.max(2, Math.min(searchX, width - SEARCH_W - 2));
+        searchY = Math.max(TOP + HEADER + 4, Math.min(searchY, height - SEARCH_H - 24));
+        String old = searchField == null ? "" : searchField.getText();
+        searchField = new GuiTextField(91, fontRenderer, 0, 0, SEARCH_W - 18, 16);
+        searchField.setMaxStringLength(80);
+        searchField.setText(old);
+        searchField.setEnableBackgroundDrawing(false);
+    }
     @Override public boolean hasBackgroundBlur() { return true; }
 
     private int columns() { return Math.max(1, (width - 16 + GAP) / (W + GAP)); }
     private int maxPage() { return Math.max(0, Category.values().length - columns()); }
     private int left(int column) { return 8 + column * (W + GAP); }
     private int bodyTop() { return TOP + HEADER; }
-    private int maxBody() { return Math.max(0, height - FOOT - bodyTop()); }
+    private int maxBody(int x) {
+        int bottom = height - FOOT;
+        int sx = Math.round(searchDrawX), sy = Math.round(searchDrawY);
+        int sw = Math.round(SEARCH_TAB_W + (SEARCH_W - SEARCH_TAB_W) * searchExpansion);
+        if (!Float.isNaN(searchDrawX) && x < sx + sw + 4 && x + W > sx - 4)
+            bottom = Math.min(bottom, sy - 5);
+        return Math.max(0, bottom - bodyTop());
+    }
     private int accent() {
         switch (GuiPreferences.theme) {
             case 1: return 0xFFE35D65;
@@ -146,17 +172,26 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         for (Module module : modules) result += ROW + panelHeight(module);
         return result;
     }
-    private int bodyHeight(List<Module> modules) {
-        return Math.min(maxBody(), contentHeight(modules));
+    private int bodyHeight(List<Module> modules, int x) {
+        return Math.min(maxBody(x), contentHeight(modules));
     }
-    private int maxScroll(List<Module> modules) {
-        return Math.max(0, contentHeight(modules) - bodyHeight(modules));
+    private int maxScroll(List<Module> modules, int x) {
+        return Math.max(0, contentHeight(modules) - bodyHeight(modules, x));
     }
     private void updateAnimations(float partial) {
         long now = System.nanoTime();
         float dt = lastFrame == 0 ? 0 : Math.min(0.05F, (now - lastFrame) / 1000000000F);
         frameSeconds = dt;
         lastFrame = now;
+        int tabX = Math.max(2, width - SEARCH_TAB_W - 9);
+        int tabY = Math.max(TOP + HEADER + 4, height - SEARCH_TAB_H - 30);
+        if (Float.isNaN(searchDrawX)) { searchDrawX = searchOpen ? searchX : tabX; searchDrawY = searchOpen ? searchY : tabY; }
+        float searchEase = 1F - (float) Math.exp(-20F * dt);
+        searchDrawX += ((searchOpen ? searchX : tabX) - searchDrawX) * searchEase;
+        searchDrawY += ((searchOpen ? searchY : tabY) - searchDrawY) * searchEase;
+        searchExpansion += ((searchOpen ? 1F : 0F) - searchExpansion) * searchEase;
+        if (Math.abs(searchExpansion - (searchOpen ? 1F : 0F)) < .005F)
+            searchExpansion = searchOpen ? 1F : 0F;
         float ease = 1F - (float) Math.exp(-14F * dt);
         for (Category category : Category.values()) {
             for (Module module : GoldForge.MODULES.in(category)) {
@@ -176,7 +211,14 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override public void drawScreen(int mx, int my, float partial) {
+        ScaledResolution resolution = new ScaledResolution(mc);
+        if (width != resolution.getScaledWidth() || height != resolution.getScaledHeight())
+            setWorldAndResolution(mc, resolution.getScaledWidth(), resolution.getScaledHeight());
         updateAnimations(partial);
+        // A previous renderer can leave a scissor rectangle active. Own the
+        // clipping state for this frame so headers and page controls stay visible.
+        GL11.glPushAttrib(GL11.GL_SCISSOR_BIT);
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
         BrandMark.draw(8, 5, 20);
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
@@ -188,17 +230,19 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         Category[] categories = Category.values();
         for (int col = 0; col < columns() && page + col < categories.length; col++)
             drawColumn(categories[page + col], left(col), mx, my);
+        drawSearch(mx, my);
         text("LMB TOGGLE  |  RMB SETTINGS  |  WHEEL SCROLL", 8, height - 13, 0xFFEAD993);
         box(width - 182, height - 19, 84, 16, accent());
         text("GUI EDITOR", width - 176, height - 15, 0xFF101010);
         box(width - 91, height - 19, 84, 16, accent());
         text("HUD EDITOR", width - 85, height - 15, 0xFF101010);
+        GL11.glPopAttrib();
     }
 
     private void drawColumn(Category category, int x, int mx, int my) {
         List<Module> modules = GoldForge.MODULES.in(category);
-        int body = bodyHeight(modules);
-        int max = maxScroll(modules);
+        int body = bodyHeight(modules, x);
+        int max = maxScroll(modules, x);
         int offset = Math.max(0, Math.min(scroll(category), max));
         scroll.put(category, offset);
         box(x, TOP, W, HEADER, accent());
@@ -213,6 +257,11 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         for (Module module : modules) {
             if (y + ROW > bodyTop() && y < bodyTop() + body) {
                 boolean hover = mx >= x && mx < x + W && my >= y && my < y + ROW;
+                if (searchMatches(module)) {
+                    double elapsed = (System.nanoTime() - searchChangedAt) / 1000000000D;
+                    int alpha = 35 + (int) (115D * (0.5D + 0.5D * Math.sin(elapsed * 5D - Math.PI / 2D)));
+                    Gui.drawRect(x + 1, y, x + W - 1, y + ROW, (alpha << 24) | 0xE32626);
+                }
                 if (hover) Gui.drawRect(x + 1, y, x + W - 1, y + ROW,
                         (backgroundAlpha() * 0x55 / 255 << 24) | 0x6B591C);
                 if (module.enabled) Gui.drawRect(x + 1, y, x + 3, y + ROW, accent());
@@ -234,6 +283,38 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
             Gui.drawRect(x + W - 3, bodyTop() + 2 + pos,
                     x + W - 1, bodyTop() + 2 + pos + thumb, accent());
         }
+    }
+
+    private boolean searchMatches(Module module) {
+        if (searchField == null) return false;
+        String query = searchField.getText().trim().toLowerCase(java.util.Locale.ROOT);
+        return !query.isEmpty() && module.name.toLowerCase(java.util.Locale.ROOT).contains(query);
+    }
+
+    private void drawSearch(int mx, int my) {
+        int x = Math.round(searchDrawX), y = Math.round(searchDrawY);
+        int sw = Math.round(SEARCH_TAB_W + (SEARCH_W - SEARCH_TAB_W) * searchExpansion);
+        int sh = Math.round(SEARCH_TAB_H + (SEARCH_H - SEARCH_TAB_H) * searchExpansion);
+        if (searchExpansion < .8F) {
+            boolean hover = mx >= x - 4 && mx < x + SEARCH_TAB_W && my >= y && my < y + SEARCH_TAB_H;
+            int lift = hover ? 4 : 0;
+            box(x - lift, y, sw + lift, sh, accent());
+            text("SEARCH  >", x + 6 - lift, y + 5, 0xFF101010);
+            return;
+        }
+        box(x, y, sw, sh, surface());
+        Gui.drawRect(x, y, x + sw, y + 17, accent());
+        text("SEARCH", x + 6, y + 4, 0xFF101010);
+        text("x", x + sw - 12, y + 4, 0xFF101010);
+        if (searchExpansion < .99F) return;
+        Gui.drawRect(x + 7, y + 23, x + sw - 7, y + 44, 0xCC25251D);
+        Gui.drawRect(x + 8, y + 43, x + sw - 8, y + 44, accent());
+        searchField.x = x + 10;
+        searchField.y = y + 29;
+        searchField.width = SEARCH_W - 20;
+        searchField.drawTextBox();
+        if (searchField.getText().isEmpty() && !searchField.isFocused())
+            text("Find module...", x + 11, y + 29, 0xFFACA78A);
     }
 
     private void circle(int cx, int cy, boolean enabled) {
@@ -293,19 +374,23 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         Gui.drawRect(x + 9, keyY, x + W - 9, keyY + 16, 0xA0423C23);
         text(binding == module ? "PRESS A KEY..." : "KEY: " + (module.key == 0 ? "NONE" :
                 Keyboard.getKeyName(module.key)), x + 12, keyY + 4, accent());
-        if (special(module)) text("OPEN MODULE EDITOR", x + 9, keyY + 21, accent());
+        if (special(module)) {
+            Gui.drawRect(x+9,keyY+18,x+W-9,keyY+33,0xA0423C23);
+            text("CONFIGURE", x + 13, keyY + 21, accent());
+        }
         clip(x + 1, bodyTop() + 1, W - 2, Math.max(0, body - 2));
     }
 
     private boolean special(Module module) {
         return module instanceof BlockESP || module instanceof DIESP
-                || module instanceof AutoSign || module instanceof Hands;
+                || module instanceof AutoSign || module instanceof Hands || ModuleTextEditor.supports(module);
     }
     private void openEditor(Module module) {
         if (module instanceof BlockESP) mc.displayGuiScreen(new BlockSelectGui(this, (BlockESP) module));
         else if (module instanceof DIESP) mc.displayGuiScreen(new ItemSelectGui(this, (DIESP) module));
         else if (module instanceof AutoSign) mc.displayGuiScreen(new SignTextGui(this, (AutoSign) module));
         else if (module instanceof Hands) ((Hands) module).openEditor();
+        else if(ModuleTextEditor.supports(module))mc.displayGuiScreen(new ModuleTextEditor(this,module));
     }
     private void settingsClick(Module module, int x, int y, int h, int mx, int my) {
         if (my >= y + 16 && my < y + 30 && mx >= x + 9 && mx < x + W - 9) {
@@ -330,10 +415,17 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void mouseClickMove(int mx, int my, int button, long time) {
+        if (button == 0 && searchDragging) {
+            searchX = Math.max(2, Math.min(mx - dragX, width - SEARCH_W - 2));
+            searchY = Math.max(TOP + HEADER + 4, Math.min(my - dragY, height - SEARCH_H - 24));
+            searchDrawX = searchX; searchDrawY = searchY;
+            return;
+        }
         if (button == 0 && activeSlider != null)
             activeSlider.setFraction((mx - activeSliderX) / (double) activeSliderWidth);
     }
     @Override protected void mouseReleased(int mx, int my, int button) {
+        if (button == 0) searchDragging = false;
         if (button == 0 && activeSlider != null) {
             activeSlider = null;
             ConfigManager.save();
@@ -341,6 +433,18 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void mouseClicked(int mx, int my, int button) throws IOException {
+        int sx = Math.round(searchDrawX), sy = Math.round(searchDrawY);
+        if (button == 0 && !searchOpen && mx >= sx - 5 && mx < sx + SEARCH_TAB_W && my >= sy && my < sy + SEARCH_TAB_H) {
+            searchOpen = true; return;
+        }
+        if (searchOpen && mx >= sx && mx < sx + SEARCH_W && my >= sy && my < sy + SEARCH_H) {
+            if (button == 0 && my < sy + 17) {
+                if (mx >= sx + SEARCH_W - 18) { searchOpen = false; searchField.setFocused(false); }
+                else { searchDragging = true; dragX = mx - sx; dragY = my - sy; }
+            } else searchField.mouseClicked(mx, my, button);
+            return;
+        }
+        if (searchField != null) searchField.setFocused(false);
         if (my >= height - 19 && my < height - 3) {
             if (mx >= width - 182 && mx < width - 98) {
                 mc.displayGuiScreen(new PixelGuiEditor(this)); return;
@@ -355,9 +459,9 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
             if (mx < x || mx >= x + W) continue;
             Category category = categories[page + col];
             List<Module> modules = GoldForge.MODULES.in(category);
-            int body = bodyHeight(modules);
+            int body = bodyHeight(modules, x);
             if (my < bodyTop() + 1 || my >= bodyTop() + body - 1) continue;
-            int y = bodyTop() + 1 - Math.min(scroll(category), maxScroll(modules));
+            int y = bodyTop() + 1 - Math.min(scroll(category), maxScroll(modules, x));
             for (Module module : modules) {
                 if (my >= y && my < y + ROW) {
                     if (button == 0) module.toggle();
@@ -392,8 +496,8 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
             if (mx < x || mx >= x + W) continue;
             Category category = Category.values()[page + col];
             List<Module> modules = GoldForge.MODULES.in(category);
-            if (my >= bodyTop() && my < bodyTop() + bodyHeight(modules)) {
-                scroll.put(category, Math.max(0, Math.min(maxScroll(modules),
+            if (my >= bodyTop() && my < bodyTop() + bodyHeight(modules, x)) {
+                scroll.put(category, Math.max(0, Math.min(maxScroll(modules, x),
                         scroll(category) + (wheel < 0 ? ROW * 2 : -ROW * 2))));
                 return;
             }
@@ -402,6 +506,13 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void keyTyped(char ch, int key) throws IOException {
+        if (searchOpen && searchField != null && searchField.isFocused()) {
+            String before = searchField.getText();
+            searchField.textboxKeyTyped(ch, key);
+            if (!before.equals(searchField.getText())) searchChangedAt = System.nanoTime();
+            if (key == Keyboard.KEY_ESCAPE) searchField.setFocused(false);
+            return;
+        }
         if (binding != null) {
             binding.setKey(key == Keyboard.KEY_ESCAPE ? 0 : key);
             binding = null; return;

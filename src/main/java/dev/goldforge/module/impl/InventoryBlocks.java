@@ -28,6 +28,7 @@ final class InventoryBlocks {
     }
 
     static int selectBlock(Minecraft mc, net.minecraft.block.Block block, int preferredSlot) {
+        if(!BlockFilter.allows(block))return -1;
         for (int slot=0; slot<36; slot++) {
             ItemStack stack=mc.player.inventory.getStackInSlot(slot);
             if (stack.isEmpty() || !(stack.getItem() instanceof ItemBlock) || ((ItemBlock)stack.getItem()).getBlock()!=block) continue;
@@ -63,6 +64,6 @@ final class InventoryBlocks {
     }
 
     private static boolean isFullBlock(ItemStack stack) {
-        return !stack.isEmpty() && stack.getItem() instanceof ItemBlock && ((ItemBlock)stack.getItem()).getBlock().getDefaultState().isFullBlock();
+        return !stack.isEmpty() && stack.getItem() instanceof ItemBlock && BlockFilter.allows(((ItemBlock)stack.getItem()).getBlock()) && ((ItemBlock)stack.getItem()).getBlock().getDefaultState().isFullBlock();
     }
 }

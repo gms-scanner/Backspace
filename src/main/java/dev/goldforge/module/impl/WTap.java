@@ -17,15 +17,15 @@ public final class WTap extends Module {
 
     public WTap(){
         super("WTap","Resets sprint for a short hit window, then resumes it if sprint is still held.",Category.COMBAT,0);
+        addEntitySelection(true);
         addIntSetting("Sprint reset ticks",1,4,1,()->resetTicks,v->resetTicks=v);
         addIntSetting("Ignore friend targets (0/1)",0,1,1,()->friendFilter,v->friendFilter=v);
-        addIntSetting("Players only (0/1)",0,1,1,()->playersOnly,v->playersOnly=v);
     }
 
     public void onAttack(AttackEntityEvent event){
         if(mc.player==null||event.getEntityPlayer()!=mc.player||!mc.player.isSprinting())return;
         Entity target=event.getTarget();
-        if(playersOnly!=0&&!(target instanceof EntityPlayer))return;
+        if(!acceptsEntity(target))return;
         if(friendFilter!=0&&target instanceof EntityPlayer&&FriendManager.isFriend(target.getName()))return;
         resumeSprint=true;
         resumeTicks=Math.max(1,resetTicks);

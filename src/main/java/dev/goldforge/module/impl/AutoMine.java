@@ -46,6 +46,7 @@ public final class AutoMine extends Module {
 
     public AutoMine() {
         super("AutoMine", "Mines exposed blocks around a target's feet and previews the next block.", Category.COMBAT, 0);
+        addEntitySelection(false);
         addIntSetting("Target range", 3, 8, 1, () -> targetRange, v -> targetRange = v);
         addIntSetting("Include floor (0/1)", 0, 1, 1, () -> includeFloor, v -> includeFloor = v);
         addIntSetting("Include head ring (0/1)", 0, 1, 1, () -> includeHead, v -> includeHead = v);
@@ -127,6 +128,7 @@ public final class AutoMine extends Module {
         double bestDistance = Double.MAX_VALUE;
         double rangeSq = targetRange * targetRange;
         for (EntityPlayer candidate : mc.world.playerEntities) {
+            if (!acceptsEntity(candidate)) continue;
             if (candidate == mc.player || candidate.isDead || candidate.getHealth() <= 0F
                     || candidate.isSpectator() || (ignoreFriends != 0 && FriendManager.isFriend(candidate.getName()))) continue;
             double distance = mc.player.getDistanceSq(candidate);

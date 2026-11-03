@@ -20,9 +20,10 @@ import java.lang.reflect.Field;
 public final class GoldForge {
     public static final String MODID = "goldforge";
     public static final String NAME = "Backspace";
-    public static final String VERSION = "dev-4.1-dev";
+    public static final String VERSION = "dev-4.2";
     public static final ModuleManager MODULES = new ModuleManager();
     private static final Field SPLASH_FIELD=findSplashField();
+    private long lastClickGuiKey;
     private static final String[] CUSTOM_SPLASHES={
         splash(TextFormatting.GOLD,"Glory to the 888!"),
         splash(TextFormatting.DARK_GRAY,"Charkholl was here"),
@@ -64,6 +65,12 @@ public final class GoldForge {
     };
 
     @Mod.EventHandler public void init(FMLInitializationEvent event) {
+        // OneConfig defaults to Right Shift too. Keep Backspace's ClickGUI on
+        // that key and leave OneConfig accessible through its own command.
+        cc.polyfrost.oneconfig.config.core.OneKeyBind oneConfigKey =
+                cc.polyfrost.oneconfig.internal.config.Preferences.oneConfigKeyBind;
+        if (oneConfigKey != null && oneConfigKey.getKeyBinds().contains(Keyboard.KEY_RSHIFT))
+            oneConfigKey.clearKeys();
         ConfigManager.load();
         FriendManager.load();
         MinecraftForge.EVENT_BUS.register(MODULES);
@@ -77,6 +84,8 @@ public final class GoldForge {
         ClientCommandHandler.instance.registerCommand(new DiscoveryCommand());
         ClientCommandHandler.instance.registerCommand(new ExpeditionCommand());
         ClientCommandHandler.instance.registerCommand(new WhisperSpamCommand());
+        ClientCommandHandler.instance.registerCommand(new ModuleConfigCommand());
+        BackspaceUpdater.check(true);
     }
 
     @SubscribeEvent public void chooseMainMenuSplash(GuiScreenEvent.InitGuiEvent.Post event){
@@ -87,6 +96,13 @@ public final class GoldForge {
 
     @SubscribeEvent public void openBackspaceMenu(net.minecraftforge.client.event.GuiOpenEvent event) {
         if (event.getGui() instanceof GuiMainMenu) event.setGui(new dev.goldforge.gui.BackspaceMainMenu());
+        // OneConfig may restore its Right Shift binding after our initialization.
+        // Route that key's screen-open request to Backspace regardless of event order.
+        else if (event.getGui() != null
+                && event.getGui().getClass().getName().equals("cc.polyfrost.oneconfig.gui.OneConfigGui")
+                && (Keyboard.isKeyDown(Keyboard.KEY_RSHIFT)
+                    || System.nanoTime() - lastClickGuiKey < 300000000L))
+            event.setGui(new dev.goldforge.gui.PixelClickGui());
     }
 
     private static String splash(TextFormatting color,String text){return color.toString()+text;}
@@ -98,6 +114,7 @@ public final class GoldForge {
     @SubscribeEvent public void keyInput(InputEvent.KeyInputEvent event) {
         if(!Keyboard.getEventKeyState())return;
         Minecraft mc=Minecraft.getMinecraft();
+        if(Keyboard.getEventKey()==Keyboard.KEY_RSHIFT) lastClickGuiKey=System.nanoTime();
         if(Keyboard.getEventKey()==Keyboard.KEY_RSHIFT && mc.currentScreen==null) {
             mc.displayGuiScreen(new dev.goldforge.gui.PixelClickGui());
             return;

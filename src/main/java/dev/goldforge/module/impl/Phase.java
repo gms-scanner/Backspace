@@ -61,6 +61,9 @@ public final class Phase extends Module {
     public int pearlPitch = 76;
     public int pearlCooldownTicks = 40;
     public int pearlRequireSneak = 1;
+    public int pearlMinimumHealth=8,pearlObserveTicks=100;
+    private int pearlWaiting;
+    private String pearlStatus="Ready";
     private int pearlCooldown;
     private boolean pearlArmed;
     private double lastX, lastY, lastZ, lastYaw, lastPitch;
@@ -91,6 +94,8 @@ public final class Phase extends Module {
         addIntSetting("Pearl pitch", 55, 89, 1, () -> pearlPitch, v -> pearlPitch = v);
         addIntSetting("Pearl cooldown (ticks)", 20, 120, 5, () -> pearlCooldownTicks, v -> pearlCooldownTicks = v);
         addIntSetting("Pearl: require sneak (0/1)", 0, 1, 1, () -> pearlRequireSneak, v -> pearlRequireSneak = v);
+        addIntSetting("Pearl minimum health",1,20,1,()->pearlMinimumHealth,v->pearlMinimumHealth=v);
+        addIntSetting("Pearl observation ticks",20,200,5,()->pearlObserveTicks,v->pearlObserveTicks=v);
         addIntSetting("NCP Freecam handoff window (seconds)", 1, 30, 1, () -> ncpWindowSeconds, v -> ncpWindowSeconds = v);
         addIntSetting("NCP Freecam pause after handoff (ticks)", 1, 40, 1, () -> ncpPauseTicks, v -> ncpPauseTicks = v);
         addIntSetting("Movement step (thousandths)", 1, 100, 1, () -> stepThousandths, v -> stepThousandths = v);
@@ -113,7 +118,7 @@ public final class Phase extends Module {
         lastConfiguredBias = sideBiasPercent;
         biasSweepDirection = activeSideBias < 0 ? -1 : 1;
         ncpFreecamStage = 0;
-        pearlCooldown = 0;
+        pearlCooldown = 0; pearlWaiting=0; pearlStatus="Ready";
         pearlArmed = true;
         ncpFreecamSettingsCaptured = false;
         addDiagnostic("TRACE_START tick=" + currentTick());
@@ -127,7 +132,7 @@ public final class Phase extends Module {
         retryTicks = 0;
         pendingPhaseAttempt = false;
         pendingAttemptAlerted = false;
-        pearlCooldown = 0;
+        pearlCooldown = 0; pearlWaiting=0; pearlStatus="Ready";
         pearlArmed = true;
     }
 
@@ -188,36 +193,57 @@ public final class Phase extends Module {
      * projectile collision and teleport; this mode never fabricates position.
      */
     private void tickPearlPhase(EntityPlayerSP player) {
+        if(pearlWaiting>0&&--pearlWaiting==0)pearlStatus="No position response observed";
         boolean trigger = player.collidedHorizontally && player.movementInput.moveForward > 0F
                 && (pearlRequireSneak == 0 || mc.gameSettings.keyBindSneak.isKeyDown());
         if (!trigger) { pearlArmed = true; return; }
-        if (!pearlArmed || pearlCooldown > 0 || mc.currentScreen != null
+        if (!pearlArmed || pearlCooldown > 0 || pearlWaiting>0 || mc.currentScreen != null
+                ||player.isHandActive()||player.isRiding()||player.isDead
                 || player.movementInput.moveForward <= 0F || mc.playerController == null
                 || mc.getConnection() == null || player.getCooldownTracker().hasCooldown(Items.ENDER_PEARL)) return;
+        if(player.getHealth()+player.getAbsorptionAmount()<pearlMinimumHealth){pearlStatus="Health too low";return;}
+        Module blink=dev.goldforge.GoldForge.MODULES.get("Blink");
+        if(blink!=null&&blink.enabled){pearlStatus="Disable Blink first";return;}
         int original = player.inventory.currentItem;
         int slot = -1;
+        EnumHand hand=player.getHeldItemOffhand().getItem()==Items.ENDER_PEARL?EnumHand.OFF_HAND:EnumHand.MAIN_HAND;
         for (int i = 0; i < 9; ++i) {
             ItemStack stack = player.inventory.getStackInSlot(i);
             if (!stack.isEmpty() && stack.getItem() == Items.ENDER_PEARL) { slot = i; break; }
         }
-        if (slot < 0) return;
+        if (slot < 0&&hand==EnumHand.MAIN_HAND){pearlStatus="Hotbar pearl required";return;}
+        float oldPitch=player.rotationPitch;
         try {
-            player.inventory.currentItem = slot;
+            if(hand==EnumHand.MAIN_HAND)player.inventory.currentItem = slot;
+            mc.playerController.updateController();
             float pitch = clamp(pearlPitch, 55, 89);
+            player.rotationPitch=pitch;
             if (!PacketManager.send(new CPacketPlayer.Rotation(player.rotationYaw, pitch, player.onGround), name)) return;
-            EnumActionResult result = mc.playerController.processRightClick(player, mc.world, EnumHand.MAIN_HAND);
+            EnumActionResult result = mc.playerController.processRightClick(player, mc.world, hand);
             pearlArmed = false;
             if (result == EnumActionResult.SUCCESS) {
-                player.swingArm(EnumHand.MAIN_HAND);
+                player.swingArm(hand);
+                pearlWaiting=Math.max(20,Math.min(200,pearlObserveTicks));
+                pearlStatus="Thrown; observing server";
                 pearlCooldown = Math.max(20, pearlCooldownTicks);
                 addDiagnostic("PEARL_THROW tick=" + player.ticksExisted + " pitch=" + pitch
                         + " from=" + formatPosition(player.posX, player.posY, player.posZ));
             } else pearlCooldown = 5;
         } finally {
+            player.rotationPitch=oldPitch;
             player.inventory.currentItem = original;
+            mc.playerController.updateController();
             PacketManager.send(new CPacketPlayer.Rotation(player.rotationYaw, player.rotationPitch, player.onGround), name);
         }
     }
+
+    public void observePearlPosition(){
+        if(enabled&&mode==5&&pearlWaiting>0){
+            pearlWaiting=0;pearlStatus="Server position response observed";
+            addDiagnostic("PEARL_POSITION_RESPONSE association=temporal-only");
+        }
+    }
+    @Override public String hudTag(){return mode==5?"[Pearl: "+pearlStatus+"]":"["+modeName(mode)+"]";}
 
     public static String modeName(int value) {
         switch (value) {
