@@ -22,13 +22,18 @@ jobs:
           distribution: temurin
           java-version: '8'
 
+      - name: Fetch pinned OneConfig compile dependency
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force libs | Out-Null
+          $url = 'https://repo.polyfrost.org/releases/cc/polyfrost/oneconfig-1.12.2-forge/0.2.2-alpha230/oneconfig-1.12.2-forge-0.2.2-alpha230-full.jar'
+          $jar = 'libs/OneConfig-1.12.2-forge.jar'
+          Invoke-WebRequest -Uri $url -OutFile $jar
+          $actual = (Get-FileHash $jar -Algorithm SHA256).Hash
+          if ($actual -ne 'E8DA29639341204DA12B5F7D78C2B8434EAC97A751F1808906114AF44BF204AF') {
+            throw "Unexpected OneConfig checksum: $actual"
+          }
+
       - name: Build release jar and check CrystalAura
         shell: pwsh
         run: .\gradlew.bat build crystalAuraHarness --no-daemon
-
-      - name: Upload release candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: backspace-dev-4.0.4-beta
-          path: build/libs/backspace-dev-4.0.4-beta.jar
-          if-no-files-found: error

@@ -1,14 +1,15 @@
-# Backspace dev-4.2.3
+# Backspace dev-4.2.4
 
-Small patch for Minecraft Forge 1.12.2 (Java 8).
+Build dependency patch for Minecraft Forge 1.12.2 (Java 8).
 
 ## Changes
 
-- Fixed the custom main screen layout at larger Minecraft UI scale settings. The menu now fits smaller scaled screen dimensions instead of letting controls run off-screen.
-- Kept hover and click targets aligned with the resized menu.
+- Kept the existing OneConfig-based screens and behavior.
+- Fixed GitHub Actions compilation by downloading the pinned, full OneConfig 1.12.2 Forge JAR and checking its SHA-256 before the Gradle build.
+- Removed the outdated workflow artifact upload path. The release JAR is attached to this release instead.
 
 ## Install
 
-Download `backspace-dev-4.2.3.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge). Put both JARs in the Forge `mods` folder and remove older Backspace JARs. Requires Forge 14.23.5.2859 and Java 8.
+Download `backspace-dev-4.2.4.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge). Put both JARs in the Forge `mods` folder and remove older Backspace JARs. Requires Forge 14.23.5.2859 and Java 8.
 
-The Gradle build passed. The UI scale fix has not been verified in live gameplay.
+The Gradle build and existing CrystalAura, LavaCast, and background harnesses passed locally. The OneConfig screen has not been verified in live gameplay for this patch.

@@ -1,5 +1,10 @@
 # Changelog
 
+## dev-4.2.4 2026-11-07
+
+- Kept the OneConfig GUI and fixed CI builds by fetching the pinned full OneConfig 1.12.2 Forge dependency before compilation.
+- Removed the stale workflow artifact upload path for dev-4.0.4-beta.
+
 ## Unreleased movement and Surround work — 2026-10-30
 
 - Added Burrow's one-shot obsidian placement attempt with separate server block and position observations.
