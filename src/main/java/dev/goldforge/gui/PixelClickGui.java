@@ -32,6 +32,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     private final GuiScreen parent;
     private UiFont smallFont;
     private final ThemeWindow themeWindow = new ThemeWindow();
+    private final UpdateWindow updateWindow = new UpdateWindow();
     private final EnumMap<Category, Integer> scroll = new EnumMap<Category, Integer>(Category.class);
     private final Set<Module> expanded = Collections.newSetFromMap(new IdentityHashMap<Module, Boolean>());
     private final IdentityHashMap<Module, Float> animated = new IdentityHashMap<Module, Float>();
@@ -59,6 +60,8 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
 
     public PixelClickGui() { this(null); }
     public PixelClickGui(GuiScreen parent) { this.parent = parent; }
+    public void showUpdater() { updateWindow.open=true; }
+
 
     @Override public void initGui() {
         BlurHandler.INSTANCE.reloadBlur(this);
@@ -66,6 +69,9 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         try { smallFont = new UiFont(null, 8F, true); }
         catch (Exception ignored) { smallFont = null; }
         themeWindow.font = smallFont;
+        updateWindow.font = smallFont;
+        if(updateWindow.open){updateWindow.x=Math.max(2,width-UpdateWindow.W-8);
+            updateWindow.y=Math.max(26,height-UpdateWindow.H-32);}
         if (searchX < 0) searchX = Math.max(8, width - SEARCH_W - 10);
         if (searchY < 0) searchY = Math.max(TOP + HEADER + 8, height - SEARCH_H - 46);
         searchX = Math.max(2, Math.min(searchX, width - SEARCH_W - 2));
@@ -85,6 +91,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     private int maxBody(int x) {
         int bottom = height - FOOT;
         if(themeWindow.open && x<themeWindow.x+ThemeWindow.W+4 && x+W>themeWindow.x-4) bottom=Math.min(bottom,themeWindow.y-5);
+        if(updateWindow.open && x<updateWindow.x+UpdateWindow.W+4 && x+W>updateWindow.x-4) bottom=Math.min(bottom,updateWindow.y-5);
         int sx = Math.round(searchDrawX), sy = Math.round(searchDrawY);
         int sw = Math.round(SEARCH_TAB_W + (SEARCH_W - SEARCH_TAB_W) * searchExpansion);
         if (!Float.isNaN(searchDrawX) && x < sx + sw + 4 && x + W > sx - 4)
@@ -244,11 +251,14 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
             drawColumn(categories[page + col], left(col), mx, my);
         drawSearch(mx, my);
         text("LMB TOGGLE  |  RMB SETTINGS  |  WHEEL SCROLL", 8, height - 13, 0xFFEAD993);
+        box(width - 273, height - 19, 84, 16, accent());
+        text("UPDATE", width - 267, height - 15, 0xFF101010);
         box(width - 182, height - 19, 84, 16, accent());
         text("THEME", width - 176, height - 15, 0xFF101010);
         box(width - 91, height - 19, 84, 16, accent());
         text("HUD EDITOR", width - 85, height - 15, 0xFF101010);
         themeWindow.draw(width,height);
+        updateWindow.draw(width,height,accent());
         GL11.glPopAttrib();
     }
 
@@ -400,6 +410,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void mouseClickMove(int mx, int my, int button, long time) {
+        if(updateWindow.dragging()){updateWindow.move(mx,my);return;}
         if(themeWindow.dragging()){themeWindow.move(mx,my);return;}
         if (button == 0 && searchDragging) {
             searchX = Math.max(2, Math.min(mx - dragX, width - SEARCH_W - 2));
@@ -411,6 +422,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
             activeSlider.setFraction((mx - activeSliderX) / (double) activeSliderWidth);
     }
     @Override protected void mouseReleased(int mx, int my, int button) {
+        if(updateWindow.dragging())updateWindow.release();
         if(themeWindow.dragging()){themeWindow.release();ConfigManager.save();}
         if (button == 0) searchDragging = false;
         if (button == 0 && activeSlider != null) {
@@ -420,6 +432,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void mouseClicked(int mx, int my, int button) throws IOException {
+        if(updateWindow.click(mx,my,button)){searchField.setFocused(false);return;}
         if(themeWindow.click(mx,my,button)){searchField.setFocused(false);return;}
         int sx = Math.round(searchDrawX), sy = Math.round(searchDrawY);
         if (button == 0 && !searchOpen && mx >= sx - 5 && mx < sx + SEARCH_TAB_W && my >= sy && my < sy + SEARCH_TAB_H) {
@@ -434,7 +447,16 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         }
         if (searchField != null) searchField.setFocused(false);
         if (my >= height - 19 && my < height - 3) {
+            if (mx >= width - 273 && mx < width - 189) {
+                updateWindow.open=!updateWindow.open;
+                if(updateWindow.open){themeWindow.open=false;updateWindow.x=width-UpdateWindow.W-8;
+                    updateWindow.y=Math.max(26,height-UpdateWindow.H-32);
+                    if(dev.goldforge.BackspaceUpdater.status().phase==dev.goldforge.BackspaceUpdater.Phase.IDLE)
+                        dev.goldforge.BackspaceUpdater.check(true);}
+                return;
+            }
             if (mx >= width - 182 && mx < width - 98) {
+                updateWindow.open=false;
                 themeWindow.open=!themeWindow.open; if(themeWindow.open){themeWindow.x=width-ThemeWindow.W-8;themeWindow.y=Math.max(62,height-ThemeWindow.H-32);} ConfigManager.save(); return;
             }
             if (mx >= width - 91 && mx < width - 7) {
@@ -494,6 +516,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     }
 
     @Override protected void keyTyped(char ch, int key) throws IOException {
+        if(key==Keyboard.KEY_ESCAPE && updateWindow.open){updateWindow.open=false;return;}
         if(key==Keyboard.KEY_ESCAPE && themeWindow.open){themeWindow.open=false;ConfigManager.save();return;}
         if (searchOpen && searchField != null && searchField.isFocused()) {
             String before = searchField.getText();
@@ -511,7 +534,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
         else if (key == Keyboard.KEY_RIGHT) page = Math.min(maxPage(), page + 1);
         else super.keyTyped(ch, key);
     }
-    @Override public void onGuiClosed() { if(smallFont!=null){smallFont.dispose();smallFont=null;themeWindow.font=null;} BlurHandler.INSTANCE.reloadBlur(null); ConfigManager.save(); }
+    @Override public void onGuiClosed() { if(smallFont!=null){smallFont.dispose();smallFont=null;themeWindow.font=null;updateWindow.font=null;} BlurHandler.INSTANCE.reloadBlur(null); ConfigManager.save(); }
     @Override public boolean doesGuiPauseGame() { return false; }
     @Override public void drawDefaultBackground() {}
 }

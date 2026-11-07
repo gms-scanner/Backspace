@@ -1,17 +1,16 @@
-# Backspace dev-4.2.1
+# Backspace dev-4.2.2
 
-Fix release for Minecraft Forge 1.12.2 (Java 8).
+Small patch for Minecraft Forge 1.12.2 (Java 8).
 
-## Changes since dev-4.2
+## Changes
 
-- LavaCast: repeatable lava/water casting, dynamic cast height, bounded incremental flow scans, shorter edge verification, and water collection once connected flow reaches 3–5 blocks below the player (4 by default). The HUD shows completed scan counts and current wait state.
-- Keep the integrated world and Backspace modules ticking when Escape or settings screens are open or Minecraft loses focus. Inventory screens still protect inventory actions.
-- Compact ClickGUI settings and floating theme editor with color selection and presets.
-- Ten additional animated main-menu backgrounds with a saved selector.
-- Smoother small text in the menu, ClickGUI, theme editor, and CustomChat; rounded menu selection accents.
+- Added a draggable Update window to the ClickGUI. It shows release checking, download progress, errors, and a button to close Minecraft after an update has been staged.
+- `/backspace update` now opens the Update window and starts the check.
+- Update failures show the actual error type or HTTP status instead of `failed: null`.
+- A downloaded update is validated and replaces the installed JAR after Minecraft closes.
 
 ## Install
 
-Download `backspace-dev-4.2.1.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge). Put both JARs in the Forge `mods` folder and remove older Backspace JARs. Requires Forge 14.23.5.2859 and Java 8.
+Download `backspace-dev-4.2.2.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge). Put both JARs in the Forge `mods` folder and remove older Backspace JARs. Requires Forge 14.23.5.2859 and Java 8.
 
-The Gradle build and offline LavaCast, background-pause, and CrystalAura harnesses passed. LavaCast timing and in-game menu visuals have not been verified in live gameplay.
+The Gradle build and offline LavaCast and background-pause harnesses passed. The updater's full replacement flow has not been verified in live gameplay.

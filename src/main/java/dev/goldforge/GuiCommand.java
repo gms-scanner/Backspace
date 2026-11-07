@@ -18,7 +18,7 @@ public final class GuiCommand extends CommandBase {
     private void run(ICommandSender sender,String[] args){
         if(args.length==0){Minecraft.getMinecraft().displayGuiScreen(new dev.goldforge.gui.PixelClickGui());return;}
         String action=args[0].toLowerCase(java.util.Locale.ROOT);
-        if("update".equals(action)){BackspaceUpdater.check(args.length>1&&"install".equalsIgnoreCase(args[1]));tell(sender,"Checking Backspace releases...");return;}
+        if("update".equals(action)){dev.goldforge.gui.PixelClickGui gui=new dev.goldforge.gui.PixelClickGui();gui.showUpdater();Minecraft.getMinecraft().displayGuiScreen(gui);BackspaceUpdater.check(true);return;}
         if("modules".equals(action)){for(Module module:GoldForge.MODULES.all())tell(sender,(module.enabled?"§aON §f":"§7OFF ")+module.name+" §8["+module.category.name()+"]");return;}
         if("movementdebug".equals(action)){movementdebug(sender);return;}
         if("replay".equals(action)){replay(sender,args);return;}

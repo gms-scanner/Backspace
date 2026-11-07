@@ -22,11 +22,26 @@ import java.util.Locale;
 public final class BackspaceUpdater {
     private static final String API = "https://api.github.com/repos/gms-scanner/Backspace/releases?per_page=30";
     private static volatile boolean busy;
+    public enum Phase { IDLE, CHECKING, CURRENT, DOWNLOADING, READY, FAILED }
+    public static final class Status {
+        public final Phase phase;
+        public final String detail, version;
+        public final float progress;
+        private Status(Phase phase,String detail,String version,float progress) {
+            this.phase=phase;this.detail=detail;this.version=version;this.progress=progress;
+        }
+    }
+    private static volatile Status status=new Status(Phase.IDLE,"Check for updates",GoldForge.VERSION,0F);
+    public static Status status(){return status;}
+    private static void set(Phase phase,String detail,String version,float progress) {
+        status=new Status(phase,detail,version,Math.max(0F,Math.min(1F,progress)));
+    }
     private BackspaceUpdater() {}
 
     public static void check(final boolean install) {
         if (busy) return;
         busy = true;
+        set(Phase.CHECKING,"Checking Backspace releases...",GoldForge.VERSION,0F);
         Thread worker = new Thread(() -> {
             try {
                 JsonArray releases = new JsonParser().parse(read(API)).getAsJsonArray();
@@ -38,24 +53,30 @@ public final class BackspaceUpdater {
                     int candidate = version(release.get("tag_name").getAsString());
                     if (candidate > best && asset(release) != null) { selected = release; best = candidate; }
                 }
-                if (selected == null) { message("Backspace is up to date (" + GoldForge.VERSION + ")."); return; }
+                if (selected == null) { set(Phase.CURRENT,"Backspace is up to date",GoldForge.VERSION,1F); return; }
                 String tag = selected.get("tag_name").getAsString();
-                if (!install) { message("Backspace " + tag + " is available. Run /backspace update install."); return; }
+                if (!install) { set(Phase.CURRENT,"Update available: "+tag,tag,1F); return; }
+                set(Phase.DOWNLOADING,"Updating now: "+tag,tag,0F);
                 CodeSource source = GoldForge.class.getProtectionDomain().getCodeSource();
                 if (source == null) throw new IllegalStateException("Cannot locate installed JAR");
                 Path current = Paths.get(source.getLocation().toURI());
                 if (!Files.isRegularFile(current) || !current.getFileName().toString().endsWith(".jar"))
                     throw new IllegalStateException("Updates require a packaged JAR");
                 Path staged = current.resolveSibling("backspace-update-staged.jar.download");
-                download(asset(selected), staged);
+                download(asset(selected), staged, tag);
                 if (Files.size(staged) < 100000 || !jarContainsMod(staged)) {
                     Files.deleteIfExists(staged);
                     throw new IllegalStateException("Downloaded file is not a valid Backspace mod JAR");
                 }
                 Path replacement = current.resolveSibling("backspace-" + tag.replaceAll("[^a-zA-Z0-9._-]", "") + ".jar");
                 scheduleSwap(current, staged, replacement);
-                message("Backspace " + tag + " downloaded. Close Minecraft to install; launch Prism again afterward.");
-            } catch (Exception failure) { message("Backspace update failed: " + failure.getMessage()); }
+                set(Phase.READY,"Close Minecraft to install "+tag,tag,1F);
+            } catch (Exception failure) {
+                String detail=failure.getMessage();
+                if(detail==null||detail.trim().isEmpty())detail=failure.getClass().getSimpleName();
+                set(Phase.FAILED,"Update failed: "+detail,status.version,0F);
+                org.apache.logging.log4j.LogManager.getLogger("Backspace/Updater").error("Update failed",failure);
+            }
             finally { busy = false; }
         }, "Backspace-updater");
         worker.setDaemon(true);
@@ -72,6 +93,7 @@ public final class BackspaceUpdater {
     }
 
     private static String asset(JsonObject release) {
+        if(!release.has("assets") || !release.get("assets").isJsonArray())return null;
         for (JsonElement element : release.getAsJsonArray("assets")) {
             JsonObject item = element.getAsJsonObject();
             String name = item.get("name").getAsString().toLowerCase(Locale.ROOT);
@@ -87,7 +109,10 @@ public final class BackspaceUpdater {
         HttpURLConnection connection = (HttpURLConnection)new URL(url).openConnection();
         connection.setConnectTimeout(5000); connection.setReadTimeout(10000);
         connection.setRequestProperty("User-Agent", "Backspace-Updater");
-        try (InputStream input = connection.getInputStream()) {
+        try {
+            int response=connection.getResponseCode();
+            if(response!=200)throw new java.io.IOException("GitHub returned HTTP "+response);
+            try (InputStream input = connection.getInputStream()) {
             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
             byte[] buffer = new byte[8192]; int count;
             while ((count = input.read(buffer)) != -1) {
@@ -95,19 +120,26 @@ public final class BackspaceUpdater {
                 if (output.size() > 2000000) throw new IllegalStateException("Release response too large");
             }
             return output.toString("UTF-8");
+            }
         } finally { connection.disconnect(); }
     }
 
-    private static void download(String url, Path destination) throws Exception {
+    private static void download(String url, Path destination,String tag) throws Exception {
         HttpURLConnection connection = (HttpURLConnection)new URL(url).openConnection();
         connection.setConnectTimeout(5000); connection.setReadTimeout(30000);
         connection.setRequestProperty("User-Agent", "Backspace-Updater");
-        try (InputStream input = connection.getInputStream(); OutputStream output = Files.newOutputStream(destination)) {
+        try {
+            int response=connection.getResponseCode();
+            if(response!=200)throw new java.io.IOException("Download returned HTTP "+response);
+            long total=connection.getContentLengthLong();
+            try (InputStream input = connection.getInputStream(); OutputStream output = Files.newOutputStream(destination)) {
             byte[] buffer = new byte[8192]; int count; long size = 0;
             while ((count = input.read(buffer)) != -1) {
                 size += count;
                 if (size > 30000000) throw new IllegalStateException("Update exceeds size limit");
                 output.write(buffer, 0, count);
+                set(Phase.DOWNLOADING,"Updating now: "+tag,tag,total>0?(float)size/total:0F);
+            }
             }
         } finally { connection.disconnect(); }
     }
