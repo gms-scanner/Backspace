@@ -25,7 +25,7 @@ public final class TriggerBot extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(cooldown>0){cooldown--;return;}
         if(requireAttackKey!=0&&!mc.gameSettings.keyBindAttack.isKeyDown())return;
         RayTraceResult hit=mc.objectMouseOver;

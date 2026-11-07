@@ -25,13 +25,13 @@ public final class AutoWalk extends Module {
     @Override public void tick(){
         EntityPlayerSP player=mc.player;
         if(player==null||mc.world==null){setEnabled(false);return;}
-        if(mc.currentScreen!=null||player.isDead||player.isRiding()||player.isElytraFlying()||player.isInWater()||player.isInLava()){setEnabled(false);return;}
+        if(isAutomationBlockedByScreen()||player.isDead||player.isRiding()||player.isElytraFlying()||player.isInWater()||player.isInLava()){setEnabled(false);return;}
         if(stopOnCollision!=0&&player.collidedHorizontally){setEnabled(false);return;}
         if(maxDistance>0&&tracking){double dx=player.posX-startX,dz=player.posZ-startZ;if(dx*dx+dz*dz>=((double)maxDistance*maxDistance))setEnabled(false);}
     }
 
     @Override public void onInputUpdate(InputUpdateEvent event){
-        if(mc.player==null||event.getEntityPlayer()!=mc.player||mc.currentScreen!=null)return;
+        if(mc.player==null||event.getEntityPlayer()!=mc.player||isAutomationBlockedByScreen())return;
         event.getMovementInput().moveForward=1F;
         event.getMovementInput().moveStrafe=0F;
     }

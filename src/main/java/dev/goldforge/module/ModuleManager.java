@@ -61,6 +61,7 @@ public final class ModuleManager {
     public ChunkScanService chunkScanner(){return chunkScanner;}
     public void onKey(int key) { for (Module m : modules) if (key != 0 && key == m.key) safe(m,"key-toggle",new Runnable(){@Override public void run(){m.toggle();}}); }
     @SubscribeEvent public void tick(TickEvent.ClientTickEvent event) {
+        Minecraft.getMinecraft().gameSettings.pauseOnLostFocus=false;
         if (event.phase == TickEvent.Phase.END) {
             Minecraft mc=Minecraft.getMinecraft();
             PhasePacketObserver.ensureInstalled();

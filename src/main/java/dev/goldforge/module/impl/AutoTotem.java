@@ -62,7 +62,7 @@ public final class AutoTotem extends Module {
             if(findAndEquip(Items.END_CRYSTAL))return;
         }
         if(advanced==0){stopGap();return;}
-        if(mc.currentScreen!=null){stopGap();return;}
+        if(isAutomationBlockedByScreen()){stopGap();return;}
         if(startedGap||gapReturnSlot>=0){continueGap();return;}
         if(needsGap&&gapCooldown==0&&gapRetry==0)beginGap();
     }

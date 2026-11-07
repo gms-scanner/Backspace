@@ -21,7 +21,7 @@ public final class AutoArmor extends Module {
 
     @Override public void tick(){
         if(mc.player==null||mc.world==null||mc.playerController==null)return;
-        if(mc.currentScreen!=null||!mc.player.inventory.getItemStack().isEmpty()){cooldown=0;return;}
+        if(isAutomationBlockedByScreen()||!mc.player.inventory.getItemStack().isEmpty()){cooldown=0;return;}
         if(cooldown>0){cooldown--;return;}
         for(int invSlot=0;invSlot<36;invSlot++){
             ItemStack candidate=mc.player.inventory.getStackInSlot(invSlot);

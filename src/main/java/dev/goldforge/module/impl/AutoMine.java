@@ -62,7 +62,7 @@ public final class AutoMine extends Module {
 
     @Override public void tick() {
         ticks++;
-        if (mc.player == null || mc.world == null || mc.playerController == null || mc.currentScreen != null
+        if (mc.player == null || mc.world == null || mc.playerController == null || isAutomationBlockedByScreen()
                 || mc.player.isHandActive()) {
             reset();
             return;

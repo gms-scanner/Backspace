@@ -24,7 +24,7 @@ public final class AutoWeapon extends Module {
 
     @Override public void tick(){
         EntityPlayerSP player=mc.player;
-        if(player==null||mc.world==null||mc.currentScreen!=null||!mc.gameSettings.keyBindAttack.isKeyDown()) {restore();return;}
+        if(player==null||mc.world==null||isAutomationBlockedByScreen()||!mc.gameSettings.keyBindAttack.isKeyDown()) {restore();return;}
         RayTraceResult hit=mc.objectMouseOver;
         if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||!acceptsEntity(hit.entityHit)){restore();return;}
         int best=-1;double bestScore=Double.NEGATIVE_INFINITY;

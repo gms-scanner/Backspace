@@ -62,7 +62,7 @@ public final class Staircase extends Module {
         boolean use = mc.currentScreen == null && mc.gameSettings.keyBindUseItem.isKeyDown();
         if (use && !useHeld) { paused = !paused; reset(); }
         useHeld = use;
-        if (paused || mc.currentScreen != null) { releaseMovement(); return; }
+        if (paused || isAutomationBlockedByScreen()) { releaseMovement(); return; }
         if (direction == null) direction = mc.player.getHorizontalFacing();
         if (delay > 0) delay--;
         if (pending != null) {
@@ -184,7 +184,7 @@ public final class Staircase extends Module {
         if(++attempts>120)pauseWithReason("Descent blocked");
     }
     @Override public void onInputUpdate(net.minecraftforge.client.event.InputUpdateEvent event) {
-        if (!walking || paused || mc.currentScreen != null || mc.player == null) return;
+        if (!walking || paused || isAutomationBlockedByScreen() || mc.player == null) return;
         applyTimer();
         double dx=moveX-mc.player.posX, dz=moveZ-mc.player.posZ;
         double distance=Math.sqrt(dx*dx+dz*dz);

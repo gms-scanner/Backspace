@@ -2,7 +2,6 @@ package dev.goldforge.gui;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
@@ -23,10 +22,10 @@ import java.util.Map;
 /** Small antialiased atlas for the ClickGUI, backed by the bundled Inter font. */
 public final class UiFont {
     private static final long MAX_CUSTOM_FONT_BYTES = 16L * 1024L * 1024L;
-    private static final int ATLAS_SIZE = 1024;
-    private static final int CELL = 64;
+    private static final int ATLAS_SIZE = 2048;
+    private static final int CELL = 96;
     private static final int COLUMNS = ATLAS_SIZE / CELL;
-    private static final float OVERSAMPLE = 2.5F;
+    private static final float OVERSAMPLE = 4F;
     private final Minecraft mc = Minecraft.getMinecraft();
     private final Map<Integer, Glyph> glyphs = new HashMap<Integer, Glyph>();
     private final float glyphHeight;
@@ -37,7 +36,9 @@ public final class UiFont {
 
     public UiFont(File customFile) throws Exception { this(customFile,13.0F); }
 
-    public UiFont(File customFile,float pointSize) throws Exception {
+    public UiFont(File customFile,float pointSize) throws Exception { this(customFile,pointSize,false); }
+
+    public UiFont(File customFile,float pointSize,boolean semibold) throws Exception {
         Font font = null;
         if(customFile!=null&&customFile.isFile()&&customFile.length()<=MAX_CUSTOM_FONT_BYTES) {
             try(InputStream custom=new FileInputStream(customFile)) { font=Font.createFont(Font.TRUETYPE_FONT,custom); }
@@ -54,11 +55,18 @@ public final class UiFont {
         // Java 8 may reject variable fonts. Keep the UI legible with a native
         // sans-serif atlas rather than silently falling back to Minecraft's bitmap font.
         if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, 13);
+        if(semibold) {
+            Map<java.awt.font.TextAttribute,Object> attributes=new HashMap<java.awt.font.TextAttribute,Object>();
+            attributes.put(java.awt.font.TextAttribute.WEIGHT,java.awt.font.TextAttribute.WEIGHT_SEMIBOLD);
+            font=font.deriveFont(attributes);
+        }
         scale=OVERSAMPLE;
         font = font.deriveFont(Math.max(7.0F,Math.min(16.0F,pointSize))*scale);
         BufferedImage image = new BufferedImage(ATLAS_SIZE, ATLAS_SIZE, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setFont(font);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
         FontMetrics metrics = g.getFontMetrics();
@@ -69,13 +77,42 @@ public final class UiFont {
             String value = new String(Character.toChars(cp));
             int width = Math.min(CELL - 2, Math.max(1, metrics.stringWidth(value) + 3));
             g.drawString(value, cellX + 1, cellY + metrics.getAscent() + 2);
-            glyphs.put(cp, new Glyph(cellX, cellY, width, metrics.stringWidth(value)/scale, metrics.charWidth(cp)/scale));
+            float advance = (float)font.getStringBounds(value, g.getFontRenderContext()).getWidth() / scale;
+            glyphs.put(cp, new Glyph(cellX, cellY, width, width / scale, advance));
         }
         g.dispose();
         texture = mc.getTextureManager().getDynamicTextureLocation("goldforge_inter_ui", new DynamicTexture(image));
         mc.getTextureManager().bindTexture(texture);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR);
+        uploadCoverageMipmaps(image);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR_MIPMAP_LINEAR);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_LINEAR);
+    }
+
+    /** Average glyph coverage before shrinking: bilinear filtering alone samples only four
+     * source texels and aliases a four-times supersampled atlas at small menu sizes.
+     * White RGB even in transparent texels prevents dark fringes under interpolation. */
+    private static void uploadCoverageMipmaps(BufferedImage image) {
+        int size = ATLAS_SIZE;
+        int[] alpha = new int[size * size];
+        for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+            alpha[y * size + x] = image.getRGB(x, y) >>> 24;
+        for (int level = 0; level <= 3; level++) {
+            java.nio.ByteBuffer pixels = org.lwjgl.BufferUtils.createByteBuffer(size * size * 4);
+            for (int coverage : alpha) pixels.put((byte)255).put((byte)255).put((byte)255).put((byte)coverage);
+            pixels.flip();
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, level, GL11.GL_RGBA8, size, size, 0,
+                    GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+            if (level < 3) {
+                int nextSize = size / 2;
+                int[] next = new int[nextSize * nextSize];
+                for (int y = 0; y < nextSize; y++) for (int x = 0; x < nextSize; x++) {
+                    int i = y * 2 * size + x * 2;
+                    next[y * nextSize + x] = (alpha[i] + alpha[i + 1] + alpha[i + size] + alpha[i + size + 1] + 2) / 4;
+                }
+                alpha = next; size = nextSize;
+            }
+        }
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, org.lwjgl.opengl.GL12.GL_TEXTURE_MAX_LEVEL, 3);
     }
 
     public void draw(String value, float x, float y, int argb) {
@@ -83,8 +120,11 @@ public final class UiFont {
         float a = ((argb >>> 24) & 255) / 255.0F, r = ((argb >>> 16) & 255) / 255.0F;
         float green = ((argb >>> 8) & 255) / 255.0F, b = (argb & 255) / 255.0F;
         mc.getTextureManager().bindTexture(texture);
-        GlStateManager.enableTexture2D(); GlStateManager.enableBlend(); GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-        GlStateManager.color(r, green, b, a);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR_MIPMAP_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+        FontRenderState.begin();
+        try {
+        GL11.glColor4f(r, green, b, a);
         BufferBuilder buffer = Tessellator.getInstance().getBuffer();
         buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
         float start = x;
@@ -102,10 +142,9 @@ public final class UiFont {
             start += Math.max(2, glyph.advance);
         }
         Tessellator.getInstance().draw();
-        GlStateManager.tryBlendFuncSeparate(770,771,1,0);
-        GlStateManager.disableBlend();
-        GlStateManager.enableTexture2D();
-        GlStateManager.color(1, 1, 1, 1);
+        } finally {
+            FontRenderState.end();
+        }
     }
 
     public int width(String value) {

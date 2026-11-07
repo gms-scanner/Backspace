@@ -31,7 +31,7 @@ public final class KillAura extends Module {
     @Override public String hudTag(){return combatMode==1?"[1.8 "+clampCps(attacksPerSecond)+" CPS]":"[Modern]";}
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(delayTicks>0){delayTicks--;return;}
         EntityLivingBase target=selectTarget();
         if(target==null)return;

@@ -89,7 +89,7 @@ public final class Scaffold extends Module {
         if (mc.player.onGround) descentBaseY = MathHelper.floor(mc.player.getEntityBoundingBox().minY);
         updatePending();
         enforceSafety();
-        if (mc.currentScreen != null) return;
+        if (isAutomationBlockedByScreen()) return;
         if (cooldown > 0) --cooldown;
         if (cooldown > 0 || inFlight.size() >= maxPending) return;
         boolean descending = wantsDescent();

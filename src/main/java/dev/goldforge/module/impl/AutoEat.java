@@ -21,7 +21,7 @@ public final class AutoEat extends Module {
 
     @Override public void tick(){
         if(mc.player==null||mc.world==null||mc.playerController==null)return;
-        if(mc.currentScreen!=null){stopEating();return;}
+        if(isAutomationBlockedByScreen()){stopEating();return;}
         if(mc.player.isHandActive()){
             if(mc.player.getActiveHand()==EnumHand.MAIN_HAND&&mc.player.getHeldItemMainhand().getItem() instanceof net.minecraft.item.ItemFood)startedEating=true;
             return;

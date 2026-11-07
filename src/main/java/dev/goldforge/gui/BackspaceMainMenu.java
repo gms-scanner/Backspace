@@ -31,6 +31,7 @@ public final class BackspaceMainMenu extends GuiScreen {
     private static final int[] ICON_WIDTHS = {95, 100, 91, 0};
     private static final int[] ICON_HEIGHTS = {94, 110, 88, 0};
     private UiFont uiFont;
+    private UiFont smallFont;
     private long openedAt;
     private long lastFrameAt;
     private float menuFade;
@@ -49,12 +50,17 @@ public final class BackspaceMainMenu extends GuiScreen {
         menuFade = 0F;
         submenuFade = 0F;
         playHoverSeconds = 0F;
-        try { uiFont = new UiFont(null, 16F); }
+        if (uiFont != null) uiFont.dispose();
+        if (smallFont != null) smallFont.dispose();
+        try { smallFont = new UiFont(null, 9F, true); }
+        catch (Exception ignored) { smallFont = null; }
+        try { uiFont = new UiFont(null, 16F, true); }
         catch (Exception ignored) { uiFont = null; }
     }
 
     @Override public void onGuiClosed() {
         if (uiFont != null) { uiFont.dispose(); uiFont = null; }
+        if (smallFont != null) { smallFont.dispose(); smallFont = null; }
     }
 
     @Override public boolean doesGuiPauseGame() { return false; }
@@ -74,6 +80,12 @@ public final class BackspaceMainMenu extends GuiScreen {
         MenuBackdropShader.draw(0, 0, width, height, elapsed);
         beginUiLayer();
 
+        int shaderX = Math.max(4, width - 180);
+        drawRoundedRect(shaderX, 8, width - 8, 30, 5F, 0xB0101218);
+        String shaderLabel = "< " + MenuBackdropShader.NAMES[MathHelper.clamp(GuiPreferences.menuShader, 0, 10)] + " >";
+        label(shaderLabel, shaderX + 8, 13, GOLD, 10F);
+        if (inside(mouseX, mouseY, shaderX, 8, width - 8, 30))
+            label("Background: click to cycle / right-click back", Math.max(4, width - 255), 36, MUTED, 9F);
         int left = leftMargin();
         float titleY = brandY() + (1F - menuFade) * 9F;
         float wordmarkWidth = uiFont != null
@@ -121,8 +133,10 @@ public final class BackspaceMainMenu extends GuiScreen {
             else drawQuitIcon(left + 15, y + 15, 13, iconColor);
             label(names[i], left + 39, y + (labelSize == 19 ? 4 : 7), fadeAlpha(blendColor(i == QUIT ? MUTED : WHITE, GOLD, hover[i]), alpha), labelSize);
             if (hover[i] > 0.01F) {
-                drawRect(rowX, y - 5, rowX + 1, y + 35, (Math.round(210F * hover[i] * alpha) << 24) | 0x00FFD21F);
-                drawRect(left + 39, y + 29, left + 39 + Math.round(20F * hover[i]), y + 30, (Math.round(170F * hover[i] * alpha) << 24) | 0x00FFD21F);
+                int railColor = (Math.round(210F * hover[i] * alpha) << 24) | 0x00FFD21F;
+                int underlineColor = (Math.round(170F * hover[i] * alpha) << 24) | 0x00FFD21F;
+                drawRoundedRect(rowX, y - 5, rowX + 2.5F, y + 35, 1.25F, railColor);
+                drawRoundedRect(left + 39, y + 28.5F, left + 39 + Math.round(20F * hover[i]), y + 30.5F, 1F, underlineColor);
             }
         }
 
@@ -135,7 +149,8 @@ public final class BackspaceMainMenu extends GuiScreen {
 
         label("1.12.2", left, height - 26, 0xFF6A6B73, 9F);
         String footer = "BACKSPACE  /  " + GoldForge.VERSION;
-        fontRenderer.drawString(footer, width - fontRenderer.getStringWidth(footer) - 18, height - 25, 0xFF666872, false);
+        label(footer, width - (smallFont != null ? smallFont.widthPrecise(footer) : (uiFont == null ? fontRenderer.getStringWidth(footer) : uiFont.widthPrecise(footer) * 9F / 16F)) - 18,
+                height - 25, 0xFF666872, 9F);
     }
 
     private void drawPlaySubmenu(int mouseX, int mouseY, int left, int y, float fade, float menuAlpha) {
@@ -292,6 +307,12 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
 
     @Override protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        if ((mouseButton == 0 || mouseButton == 1) && inside(mouseX, mouseY, Math.max(4, width - 180), 8, width - 8, 30)) {
+            int step = mouseButton == 1 || mouseX < Math.max(4, width - 180) + 22 ? -1 : 1;
+            GuiPreferences.menuShader = (GuiPreferences.menuShader + step + MenuBackdropShader.NAMES.length) % MenuBackdropShader.NAMES.length;
+            dev.goldforge.ConfigManager.save();
+            return;
+        }
         if (mouseButton != 0) { super.mouseClicked(mouseX, mouseY, mouseButton); return; }
         keyboardFocus = false;
         int left = leftMargin();
@@ -355,12 +376,13 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
 
     private void label(String value, float x, float y, int color, float size) {
-        if (uiFont != null) {
+        UiFont selectedFont = size <= 10F && smallFont != null ? smallFont : uiFont;
+        if (selectedFont != null) {
             GlStateManager.pushMatrix();
-            float scale = Math.max(0.55F, size / 16F);
+            float scale = size / (selectedFont == smallFont ? 9F : 16F);
             GlStateManager.translate(x, y, 0F);
             GlStateManager.scale(scale, scale, 1F);
-            uiFont.draw(value, 0F, 0F, color);
+            selectedFont.draw(value, 0F, 0F, color);
             GlStateManager.popMatrix();
         } else {
             GlStateManager.pushMatrix();

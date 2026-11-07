@@ -50,6 +50,10 @@ public abstract class Module {
     protected void onDisable() {}
     protected void onWorldUnload() { onDisable(); }
     protected void onWorldLoad() { onEnable(); }
+    /** Menus and focus changes do not suspend automation. Containers still own inventory input. */
+    protected final boolean isAutomationBlockedByScreen() {
+        return mc.currentScreen instanceof net.minecraft.client.gui.inventory.GuiContainer;
+    }
     public void tick() {}
     public void render(float partialTicks) {}
     public void onInputUpdate(InputUpdateEvent event) {}

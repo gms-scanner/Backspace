@@ -28,7 +28,7 @@ public final class EChestFarm extends Module {
     @Override protected void onEnable(){stage=0;target=null;ticks=0;if(mc.player!=null)oldSlot=mc.player.inventory.currentItem;}
     @Override public void tick(){
         if(mc.player==null||mc.world==null)return;
-        if(mc.currentScreen!=null){abort();return;}
+        if(isAutomationBlockedByScreen()){abort();return;}
         if(target==null){
             RayTraceResult hit=mc.objectMouseOver;
             if(hit==null||hit.typeOfHit!=RayTraceResult.Type.BLOCK)return;

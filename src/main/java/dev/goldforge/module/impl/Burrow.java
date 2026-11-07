@@ -36,7 +36,7 @@ public final class Burrow extends Module {
             else if(ticks-attemptTick>=confirmTimeout)state="Placement unconfirmed";
             return;
         }
-        if(mc.currentScreen!=null||!mc.player.onGround||mc.player.isRiding()||mc.player.isHandActive())return;
+        if(isAutomationBlockedByScreen()||!mc.player.onGround||mc.player.isRiding()||mc.player.isHandActive())return;
         dev.goldforge.module.Module blink=dev.goldforge.GoldForge.MODULES.get("Blink");
         if(blink!=null&&blink.enabled){state="Disable Blink first";return;}
         target=new BlockPos(mc.player.posX,mc.player.getEntityBoundingBox().minY,mc.player.posZ);

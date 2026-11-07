@@ -197,7 +197,7 @@ public final class Phase extends Module {
         boolean trigger = player.collidedHorizontally && player.movementInput.moveForward > 0F
                 && (pearlRequireSneak == 0 || mc.gameSettings.keyBindSneak.isKeyDown());
         if (!trigger) { pearlArmed = true; return; }
-        if (!pearlArmed || pearlCooldown > 0 || pearlWaiting>0 || mc.currentScreen != null
+        if (!pearlArmed || pearlCooldown > 0 || pearlWaiting>0 || isAutomationBlockedByScreen()
                 ||player.isHandActive()||player.isRiding()||player.isDead
                 || player.movementInput.moveForward <= 0F || mc.playerController == null
                 || mc.getConnection() == null || player.getCooldownTracker().hasCooldown(Items.ENDER_PEARL)) return;

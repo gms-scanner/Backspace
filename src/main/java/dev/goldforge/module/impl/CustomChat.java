@@ -185,7 +185,7 @@ public final class CustomChat extends Module {
 
     private void ensureFont(){if(font==null||!java.util.Objects.equals(loadedPath,fontPath))loadFont();}
     private void loadFont(){
-        try{font=new UiFont(fontPath.isEmpty()?null:new File(fontPath),8.0F);loadedPath=fontPath;}
+        try{font=new UiFont(fontPath.isEmpty()?null:new File(fontPath),9.0F);loadedPath=fontPath;}
         catch(Exception ignored){font=null;loadedPath=fontPath;}
     }
 

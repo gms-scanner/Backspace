@@ -28,7 +28,7 @@ public final class TrailMaker extends Module {
         }
         previous=current;
         if(cooldown>0){cooldown--;return;}
-        if(mc.currentScreen!=null||mc.player.isHandActive())return;
+        if(isAutomationBlockedByScreen()||mc.player.isHandActive())return;
         BlockPos target=null;
         java.util.Iterator<BlockPos> iterator=trail.iterator();
         while(iterator.hasNext()){

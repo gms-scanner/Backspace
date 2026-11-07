@@ -31,6 +31,9 @@ final class MenuBackdropShader {
             + " col=mix(col,vec3(0.0015,0.0020,0.0035),darken*0.94);"
             + " float vignette=1.0-smoothstep(0.38,1.12,length((uv-0.5)*vec2(1.0,0.76)));"
             + " col*=0.57+0.43*vignette; gl_FragColor=vec4(col,1.0); }";
+    static final String[] NAMES = {"Original", "Molten Gold", "Aurora", "Ripple Pool", "Orbit Ribbons",
+            "Jelly Drift", "Silk Waves", "Kaleidoscope", "Neon Grid", "Solar Eclipse", "Spiral Flow"};
+    private static int modeUniform = -1;
     private static int program;
     private static int timeUniform = -1;
     private static int resolutionUniform = -1;
@@ -52,6 +55,7 @@ final class MenuBackdropShader {
                 Minecraft mc = Minecraft.getMinecraft();
                 GL20.glUseProgram(program);
                 GL20.glUniform1f(timeUniform, elapsedSeconds);
+                GL20.glUniform1i(modeUniform, Math.max(0, Math.min(10, GuiPreferences.menuShader)));
                 GL20.glUniform2f(resolutionUniform, Math.max(1, mc.displayWidth * width / Math.max(1, mc.currentScreen.width)),
                         Math.max(1, mc.displayHeight * height / Math.max(1, mc.currentScreen.height)));
                 GL11.glColor4f(1F, 1F, 1F, 1F);
@@ -101,7 +105,9 @@ final class MenuBackdropShader {
         attempted = true;
         if (!org.lwjgl.opengl.GLContext.getCapabilities().OpenGL20) return false;
         int vertex = compile(GL20.GL_VERTEX_SHADER, VERTEX);
-        int fragment = compile(GL20.GL_FRAGMENT_SHADER, FRAGMENT);
+        int fragment = compile(GL20.GL_FRAGMENT_SHADER, FRAGMENT
+                .replace("void main(){", MenuShaderEffects.SOURCE + "\nvoid main(){")
+                .replace("float t=uTime;", "float t=uTime; if(uMode>0){gl_FragColor=vec4(effect(uv,t),1.0);return;}"));
         if (vertex == 0 || fragment == 0) {
             if (vertex != 0) GL20.glDeleteShader(vertex);
             if (fragment != 0) GL20.glDeleteShader(fragment);
@@ -118,6 +124,7 @@ final class MenuBackdropShader {
             return false;
         }
         program = linked;
+        modeUniform = GL20.glGetUniformLocation(program, "uMode");
         timeUniform = GL20.glGetUniformLocation(program, "uTime");
         resolutionUniform = GL20.glGetUniformLocation(program, "uResolution");
         return timeUniform >= 0 && resolutionUniform >= 0;

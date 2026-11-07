@@ -57,7 +57,7 @@ public final class ElytraFly extends Module {
     public void tick() {
         EntityPlayerSP player = mc.player;
         if (player == null || mc.world == null || mc.getConnection() == null) return;
-        if(mc.currentScreen!=null){flightStatus="Menu paused";return;}
+        if(isAutomationBlockedByScreen()){flightStatus="Inventory open";return;}
         net.minecraft.item.ItemStack chest=player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST);
         if(chest.getItem()!=net.minecraft.init.Items.ELYTRA || !net.minecraft.item.ItemElytra.isUsable(chest)){
             flightStatus="Equip usable Elytra";return;
@@ -109,7 +109,7 @@ public final class ElytraFly extends Module {
     @Override public void onInputUpdate(net.minecraftforge.client.event.InputUpdateEvent event){
         // Consume held Space during launch so vanilla cannot repeatedly jump on
         // landing. The launch state machine reads the physical key separately.
-        if(autoTakeoff && mc.player!=null && !mc.player.isElytraFlying() && mc.currentScreen==null){
+        if(autoTakeoff && mc.player!=null && !mc.player.isElytraFlying() && !isAutomationBlockedByScreen()){
             net.minecraft.item.ItemStack chest=mc.player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST);
             if(chest.getItem()==net.minecraft.init.Items.ELYTRA && net.minecraft.item.ItemElytra.isUsable(chest))
                 event.getMovementInput().jump=false;

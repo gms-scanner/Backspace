@@ -30,7 +30,7 @@ public final class Flight extends Module {
         controlled.capabilities.allowFlying=true;
         controlled.capabilities.isFlying=true;
         controlled.capabilities.setFlySpeed((float)(.05*Math.max(.2,Math.min(5,speed))));
-        if(mc.currentScreen!=null){
+        if(isAutomationBlockedByScreen()){
             controlled.motionX=controlled.motionY=controlled.motionZ=0;
         }else if(brake&&controlled.movementInput!=null){
             if(controlled.movementInput.moveForward==0&&controlled.movementInput.moveStrafe==0)

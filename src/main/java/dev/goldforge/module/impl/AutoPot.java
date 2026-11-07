@@ -24,7 +24,7 @@ public final class AutoPot extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(cooldown>0){cooldown--;return;}
         if(mc.player.getHealth()+mc.player.getAbsorptionAmount()>healthThreshold||mc.player.isHandActive()||mc.player.isElytraFlying())return;
         int slot=findHealingPotion();if(slot<0)return;

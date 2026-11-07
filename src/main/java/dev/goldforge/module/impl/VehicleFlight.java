@@ -54,7 +54,7 @@ abstract class VehicleFlight extends Module {
             tracked=riding;lockedY=riding.posY;requested=corrected=null;
             state="Mounted";
         }
-        if(mc.currentScreen!=null||mc.player.movementInput==null)return;
+        if(isAutomationBlockedByScreen()||mc.player.movementInput==null)return;
         double forward=mc.player.movementInput.moveForward;
         double strafe=mc.player.movementInput.moveStrafe;
         double magnitude=Math.sqrt(forward*forward+strafe*strafe);
@@ -90,7 +90,7 @@ abstract class VehicleFlight extends Module {
     }
 
     private void tryMount(){
-        if(mountCooldown>0||mc.currentScreen!=null)return;
+        if(mountCooldown>0||isAutomationBlockedByScreen())return;
         Entity candidate=tracked;
         if(candidate==null||candidate.isDead||!candidate.getPassengers().isEmpty()||candidate.world!=mc.world
                 ||mc.player.getDistanceSq(candidate)>9D){

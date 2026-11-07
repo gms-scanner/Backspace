@@ -27,7 +27,7 @@ public final class AutoTrap extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(cooldown>0){cooldown--;return;}
         EntityPlayer target=nearestTarget();if(target==null)return;
         int preferred=mc.player.inventory.currentItem;

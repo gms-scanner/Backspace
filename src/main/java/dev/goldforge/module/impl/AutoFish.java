@@ -27,7 +27,7 @@ public final class AutoFish extends Module {
     @Override public void tick(){
         EntityPlayerSP player=mc.player;
         if(player==null||mc.world==null||mc.playerController==null)return;
-        if(mc.currentScreen!=null){restore();return;}
+        if(isAutomationBlockedByScreen()){restore();return;}
         if(cooldown>0){cooldown--;return;}
         if(player.getHeldItemMainhand().getItem()!=Items.FISHING_ROD){
             int rod=InventoryManager.findItem(mc,Items.FISHING_ROD);

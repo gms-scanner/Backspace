@@ -28,7 +28,7 @@ public final class ShieldBreak extends Module {
     }
 
     @Override public void tick() {
-        if (mc.player == null || mc.world == null || mc.playerController == null || mc.currentScreen != null) return;
+        if (mc.player == null || mc.world == null || mc.playerController == null || isAutomationBlockedByScreen()) return;
         if (delayTicks > 0) { delayTicks--; return; }
 
         RayTraceResult hit = mc.objectMouseOver;

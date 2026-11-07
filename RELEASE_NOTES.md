@@ -1,18 +1,17 @@
-# Backspace 4.2
+# Backspace dev-4.2.1
 
-Backspace 4.2 adds a searchable ClickGUI and an automatic release updater, alongside the development changes since the last published build.
+Fix release for Minecraft Forge 1.12.2 (Java 8).
 
-## Changes
+## Changes since dev-4.2
 
-- Draggable ClickGUI search window that collapses to a bottom-right tab. Matching modules pulse red, and category lists scroll around the window.
-- GitHub release updater. It checks on startup and stages a newer Backspace JAR for installation after Minecraft closes. Use `/backspace update` to check manually or `/backspace update install` to install an available release.
-- Movement, combat, exploration, and utility module updates, including Staircase, ElytraFly, EChestFarm, Flight, Spam, TrailMaker, and module target selection.
-- Additional module configuration controls in the ClickGUI.
+- LavaCast: repeatable lava/water casting, dynamic cast height, bounded incremental flow scans, shorter edge verification, and water collection once connected flow reaches 3–5 blocks below the player (4 by default). The HUD shows completed scan counts and current wait state.
+- Keep the integrated world and Backspace modules ticking when Escape or settings screens are open or Minecraft loses focus. Inventory screens still protect inventory actions.
+- Compact ClickGUI settings and floating theme editor with color selection and presets.
+- Ten additional animated main-menu backgrounds with a saved selector.
+- Smoother small text in the menu, ClickGUI, theme editor, and CustomChat; rounded menu selection accents.
 
 ## Install
 
-1. Download `backspace-dev-4.2.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge).
-2. Put both JARs in the Minecraft 1.12.2 Forge `mods` folder. Remove older Backspace JARs.
-3. Launch Forge 14.23.5.2859 with Java 8. Press Right Shift or run `/backspace`.
+Download `backspace-dev-4.2.1.jar` and the required [OneConfig Forge 1.12.2 JAR from Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge). Put both JARs in the Forge `mods` folder and remove older Backspace JARs. Requires Forge 14.23.5.2859 and Java 8.
 
-The updater begins working after this version is installed; earlier builds cannot update themselves retroactively. Server-specific movement and combat behavior has not been verified on every server.
+The Gradle build and offline LavaCast, background-pause, and CrystalAura harnesses passed. LavaCast timing and in-game menu visuals have not been verified in live gameplay.

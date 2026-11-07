@@ -28,7 +28,7 @@ public final class AutoMend extends Module {
 
     @Override public void tick(){
         if(mc.player==null||mc.world==null||mc.playerController==null)return;
-        if(mc.currentScreen!=null||mc.player.isHandActive()||unsafeToMend()||!hasMendingDamage()){restore();return;}
+        if(isAutomationBlockedByScreen()||mc.player.isHandActive()||unsafeToMend()||!hasMendingDamage()){restore();return;}
         if(cooldown>0){cooldown--;return;}
         int bottle=InventoryManager.findItem(mc,Items.EXPERIENCE_BOTTLE);
         if(bottle<0){restore();return;}

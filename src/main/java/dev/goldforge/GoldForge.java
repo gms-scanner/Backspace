@@ -20,7 +20,7 @@ import java.lang.reflect.Field;
 public final class GoldForge {
     public static final String MODID = "goldforge";
     public static final String NAME = "Backspace";
-    public static final String VERSION = "dev-4.2";
+    public static final String VERSION = "dev-4.2.1";
     public static final ModuleManager MODULES = new ModuleManager();
     private static final Field SPLASH_FIELD=findSplashField();
     private long lastClickGuiKey;
@@ -71,6 +71,7 @@ public final class GoldForge {
                 cc.polyfrost.oneconfig.internal.config.Preferences.oneConfigKeyBind;
         if (oneConfigKey != null && oneConfigKey.getKeyBinds().contains(Keyboard.KEY_RSHIFT))
             oneConfigKey.clearKeys();
+        Minecraft.getMinecraft().gameSettings.pauseOnLostFocus=false;
         ConfigManager.load();
         FriendManager.load();
         MinecraftForge.EVENT_BUS.register(MODULES);

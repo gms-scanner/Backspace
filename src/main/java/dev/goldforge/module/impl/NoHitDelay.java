@@ -11,7 +11,7 @@ public final class NoHitDelay extends Module {
     private static final Field LEFT_CLICK_COUNTER=findField();
     public NoHitDelay(){super("NoHitDelay","Removes the local left-click gate while attacking an end crystal.",Category.COMBAT,0);}
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.currentScreen!=null||LEFT_CLICK_COUNTER==null||!mc.gameSettings.keyBindAttack.isKeyDown())return;
+        if(mc.player==null||mc.world==null||isAutomationBlockedByScreen()||LEFT_CLICK_COUNTER==null||!mc.gameSettings.keyBindAttack.isKeyDown())return;
         if(mc.objectMouseOver!=null&&mc.objectMouseOver.entityHit instanceof EntityEnderCrystal){
             try{LEFT_CLICK_COUNTER.setInt(mc,0);}catch(IllegalAccessException failure){throw new IllegalStateException("Could not reset 1.12.2 attack delay",failure);}
         }

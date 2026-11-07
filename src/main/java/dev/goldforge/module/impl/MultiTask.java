@@ -20,7 +20,7 @@ public final class MultiTask extends Module {
         addIntSetting("Allow blocks (0/1)",0,1,1,()->allowBlocks,v->allowBlocks=v);
     }
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         ticks++;
         if(ticks%Math.max(2,useInterval)!=0||!mc.playerController.getIsHittingBlock()
                 ||!mc.gameSettings.keyBindUseItem.isKeyDown()||mc.player.isHandActive())return;

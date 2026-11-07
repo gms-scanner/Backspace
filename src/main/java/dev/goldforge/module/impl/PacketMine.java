@@ -26,7 +26,7 @@ public final class PacketMine extends Module {
         addIntSetting("Retry attempts",0,5,1,()->retryLimit,v->retryLimit=v);
     }
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.getConnection()==null||mc.currentScreen!=null){
+        if(mc.player==null||mc.world==null||mc.getConnection()==null||isAutomationBlockedByScreen()){
             abort();return;
         }
         ticks++;

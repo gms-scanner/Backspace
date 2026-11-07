@@ -34,7 +34,7 @@ public final class Surround extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()
                 ||mc.player.isDead||mc.player.isHandActive()){pending.clear();return;}
         ticks++;
         Iterator<Map.Entry<BlockPos,Integer>> iterator=pending.entrySet().iterator();

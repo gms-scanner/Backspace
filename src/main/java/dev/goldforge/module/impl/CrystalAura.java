@@ -131,7 +131,7 @@ public final class CrystalAura extends Module {
         crystalLabels=Collections.emptyList();renderTarget=null;
         if(mc.player.isDead||mc.player.getHealth()<=0F){reset();return;}
         if(mc.player.isSpectator()
-                ||mc.currentScreen!=null||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
+                ||isAutomationBlockedByScreen()||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
                 ||(pauseMining!=0&&mc.playerController.getIsHittingBlock())){
             state="Paused";return;
         }
@@ -179,7 +179,7 @@ public final class CrystalAura extends Module {
         if(!enabled||instantBreak==0||breaking==0||minCrystalAge>0||mc.player==null||mc.world==null
                 ||mc.playerController==null||mc.getConnection()==null||activeWorld!=mc.world
                 ||crystal.world!=mc.world||mc.player.isDead||mc.player.getHealth()<=0F
-                ||mc.currentScreen!=null||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
+                ||isAutomationBlockedByScreen()||usingGoldenApple()||(pauseUsing!=0&&mc.player.isHandActive())
                 ||(pauseMining!=0&&mc.playerController.getIsHittingBlock())||!canBreakNow()
                 ||!breakAttempts.ready(crystal.getEntityId(),clientTicks))return;
         if(aimOnly!=0&&(mc.objectMouseOver==null||mc.objectMouseOver.entityHit!=crystal))return;

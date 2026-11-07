@@ -26,7 +26,7 @@ public final class BowAssist extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.getConnection()==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||mc.getConnection()==null||isAutomationBlockedByScreen())return;
         if(mc.player.getHeldItemMainhand().getItem()!=Items.BOW||!mc.player.isHandActive()||mc.player.getActiveHand()!=net.minecraft.util.EnumHand.MAIN_HAND)return;
         int drawTicks=72000-mc.player.getItemInUseCount();
         if(drawTicks<minChargeTicks)return;

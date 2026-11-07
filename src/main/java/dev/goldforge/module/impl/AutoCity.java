@@ -40,7 +40,7 @@ public final class AutoCity extends Module {
 
     @Override public void tick(){
         ticks++;
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null){reset();return;}
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()){reset();return;}
         Module autoMine=GoldForge.MODULES.get("AutoMine");
         if(autoMine!=null&&autoMine.enabled&&!autoMine.isSuspended()){reset();return;}
         EntityPlayer target=nearestTarget();
