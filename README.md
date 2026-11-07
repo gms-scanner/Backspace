@@ -8,14 +8,14 @@
 
 <p align="center">
   A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
-  <strong>dev-4.0.4-beta</strong>
+  <strong>dev-4.2.3-beta</strong>
 </p>
 
 <p align="center">
   <img alt="Minecraft 1.12.2" src="https://img.shields.io/badge/Minecraft-1.12.2-5b8c3a?style=flat-square">
   <img alt="Forge 14.23.5.2859" src="https://img.shields.io/badge/Forge-14.23.5.2859-e36d28?style=flat-square">
   <img alt="Java 8" src="https://img.shields.io/badge/Java-8-f89820?style=flat-square">
-  <img alt="Release dev-4.0.4-beta" src="https://img.shields.io/badge/release-dev--4.0.4--beta-ffd800?style=flat-square">
+  <img alt="Release dev-4.2.3-beta" src="https://img.shields.io/badge/release-dev--4.0.4--beta-ffd800?style=flat-square">
 </p>
 
 ---
