@@ -28,7 +28,7 @@ public final class HoleFill extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(cooldown>0){cooldown--;return;}
         List<BlockPos> holes=findHoles();
         if(holes.isEmpty())return;

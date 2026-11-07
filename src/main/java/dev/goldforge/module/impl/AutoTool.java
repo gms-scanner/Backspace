@@ -16,7 +16,7 @@ public final class AutoTool extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.currentScreen!=null||!mc.gameSettings.keyBindAttack.isKeyDown()){restoreIfNeeded();return;}
+        if(mc.player==null||mc.world==null||isAutomationBlockedByScreen()||!mc.gameSettings.keyBindAttack.isKeyDown()){restoreIfNeeded();return;}
         RayTraceResult hit=mc.objectMouseOver;
         if(hit==null||hit.typeOfHit!=RayTraceResult.Type.BLOCK){restoreIfNeeded();return;}
         int best=InventoryManager.bestHotbarTool(mc,mc.world.getBlockState(hit.getBlockPos()));

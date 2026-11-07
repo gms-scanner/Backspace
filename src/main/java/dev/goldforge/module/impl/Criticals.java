@@ -12,12 +12,14 @@ public final class Criticals extends Module {
 
     public Criticals(){
         super("Criticals","Optional mini-jump or normal-jump timing; disabled by default.",Category.COMBAT,0);
+        addEntitySelection(true);
         addIntSetting("Mode (0 Off, 1 Mini jump, 2 Jump)",0,2,1,()->mode,v->mode=v);
     }
 
     /** Returns true only when the target can be attacked in the selected mode. */
     public boolean readyToAttack(EntityLivingBase target){
         if(mc.player==null||target==null)return false;
+        if(!acceptsEntity(target))return true;
         if(mode==0){
             clearPending();
             return true;

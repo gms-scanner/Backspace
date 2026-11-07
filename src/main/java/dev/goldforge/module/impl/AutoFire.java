@@ -23,7 +23,7 @@ public final class AutoFire extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null){lastTarget=null;return;}
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()){lastTarget=null;return;}
         if(cooldown>0){cooldown--;return;}
         RayTraceResult hit=mc.objectMouseOver;
         if(hit==null||hit.typeOfHit!=RayTraceResult.Type.BLOCK){lastTarget=null;return;}

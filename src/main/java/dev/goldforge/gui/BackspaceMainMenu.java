@@ -31,6 +31,7 @@ public final class BackspaceMainMenu extends GuiScreen {
     private static final int[] ICON_WIDTHS = {95, 100, 91, 0};
     private static final int[] ICON_HEIGHTS = {94, 110, 88, 0};
     private UiFont uiFont;
+    private UiFont smallFont;
     private long openedAt;
     private long lastFrameAt;
     private float menuFade;
@@ -49,17 +50,27 @@ public final class BackspaceMainMenu extends GuiScreen {
         menuFade = 0F;
         submenuFade = 0F;
         playHoverSeconds = 0F;
-        try { uiFont = new UiFont(null, 16F); }
+        if (uiFont != null) uiFont.dispose();
+        if (smallFont != null) smallFont.dispose();
+        try { smallFont = new UiFont(null, 9F, true); }
+        catch (Exception ignored) { smallFont = null; }
+        try { uiFont = new UiFont(null, 16F, true); }
         catch (Exception ignored) { uiFont = null; }
     }
 
     @Override public void onGuiClosed() {
         if (uiFont != null) { uiFont.dispose(); uiFont = null; }
+        if (smallFont != null) { smallFont.dispose(); smallFont = null; }
     }
 
     @Override public boolean doesGuiPauseGame() { return false; }
 
     @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        float scale = layoutScale();
+        int width = layoutWidth();
+        int height = layoutHeight();
+        mouseX = Math.round(mouseX / scale);
+        mouseY = Math.round(mouseY / scale);
         long now = System.currentTimeMillis();
         float dt = MathHelper.clamp((now - lastFrameAt) / 1000F, 0F, 0.05F);
         lastFrameAt = now;
@@ -70,10 +81,18 @@ public final class BackspaceMainMenu extends GuiScreen {
         menuFade = approach(menuFade, 1F, dt, 4.6F);
         quitFade = approach(quitFade, mc.isSingleplayer() || mc.world == null ? 1F : 0.35F, dt, 5F);
 
-        drawRect(0, 0, width, height, DARK);
-        MenuBackdropShader.draw(0, 0, width, height, elapsed);
+        drawRect(0, 0, this.width, this.height, DARK);
+        MenuBackdropShader.draw(0, 0, this.width, this.height, elapsed);
         beginUiLayer();
+        GlStateManager.pushMatrix();
+        GlStateManager.scale(scale, scale, 1F);
 
+        int shaderX = Math.max(4, width - 180);
+        drawRoundedRect(shaderX, 8, width - 8, 30, 5F, 0xB0101218);
+        String shaderLabel = "< " + MenuBackdropShader.NAMES[MathHelper.clamp(GuiPreferences.menuShader, 0, 10)] + " >";
+        label(shaderLabel, shaderX + 8, 13, GOLD, 10F);
+        if (inside(mouseX, mouseY, shaderX, 8, width - 8, 30))
+            label("Background: click to cycle / right-click back", Math.max(4, width - 255), 36, MUTED, 9F);
         int left = leftMargin();
         float titleY = brandY() + (1F - menuFade) * 9F;
         float wordmarkWidth = uiFont != null
@@ -121,8 +140,10 @@ public final class BackspaceMainMenu extends GuiScreen {
             else drawQuitIcon(left + 15, y + 15, 13, iconColor);
             label(names[i], left + 39, y + (labelSize == 19 ? 4 : 7), fadeAlpha(blendColor(i == QUIT ? MUTED : WHITE, GOLD, hover[i]), alpha), labelSize);
             if (hover[i] > 0.01F) {
-                drawRect(rowX, y - 5, rowX + 1, y + 35, (Math.round(210F * hover[i] * alpha) << 24) | 0x00FFD21F);
-                drawRect(left + 39, y + 29, left + 39 + Math.round(20F * hover[i]), y + 30, (Math.round(170F * hover[i] * alpha) << 24) | 0x00FFD21F);
+                int railColor = (Math.round(210F * hover[i] * alpha) << 24) | 0x00FFD21F;
+                int underlineColor = (Math.round(170F * hover[i] * alpha) << 24) | 0x00FFD21F;
+                drawRoundedRect(rowX, y - 5, rowX + 2.5F, y + 35, 1.25F, railColor);
+                drawRoundedRect(left + 39, y + 28.5F, left + 39 + Math.round(20F * hover[i]), y + 30.5F, 1F, underlineColor);
             }
         }
 
@@ -135,7 +156,9 @@ public final class BackspaceMainMenu extends GuiScreen {
 
         label("1.12.2", left, height - 26, 0xFF6A6B73, 9F);
         String footer = "BACKSPACE  /  " + GoldForge.VERSION;
-        fontRenderer.drawString(footer, width - fontRenderer.getStringWidth(footer) - 18, height - 25, 0xFF666872, false);
+        label(footer, width - (smallFont != null ? smallFont.widthPrecise(footer) : (uiFont == null ? fontRenderer.getStringWidth(footer) : uiFont.widthPrecise(footer) * 9F / 16F)) - 18,
+                height - 25, 0xFF666872, 9F);
+        GlStateManager.popMatrix();
     }
 
     private void drawPlaySubmenu(int mouseX, int mouseY, int left, int y, float fade, float menuAlpha) {
@@ -192,7 +215,7 @@ public final class BackspaceMainMenu extends GuiScreen {
 
     /** The supplied transparent mark is deliberately tinted and composited beneath the type. */
     private void drawBrandEmblem(int left, float titleY, float wordmarkWidth, float fade) {
-        int size = height < 320 ? 92 : 120;
+        int size = layoutHeight() < 320 ? 92 : 120;
         int x = Math.round(left + (wordmarkWidth - size) * 0.5F);
         int y = Math.round(titleY - (size - 34F) * 0.5F);
         mc.getTextureManager().bindTexture(BRAND_MARK);
@@ -292,6 +315,16 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
 
     @Override protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        float scale = layoutScale();
+        mouseX = Math.round(mouseX / scale);
+        mouseY = Math.round(mouseY / scale);
+        int width = layoutWidth();
+        if ((mouseButton == 0 || mouseButton == 1) && inside(mouseX, mouseY, Math.max(4, width - 180), 8, width - 8, 30)) {
+            int step = mouseButton == 1 || mouseX < Math.max(4, width - 180) + 22 ? -1 : 1;
+            GuiPreferences.menuShader = (GuiPreferences.menuShader + step + MenuBackdropShader.NAMES.length) % MenuBackdropShader.NAMES.length;
+            dev.goldforge.ConfigManager.save();
+            return;
+        }
         if (mouseButton != 0) { super.mouseClicked(mouseX, mouseY, mouseButton); return; }
         keyboardFocus = false;
         int left = leftMargin();
@@ -312,7 +345,7 @@ public final class BackspaceMainMenu extends GuiScreen {
             if (mc.world == null) mc.shutdown(); else mc.displayGuiScreen(null);
             return;
         }
-        super.mouseClicked(mouseX, mouseY, mouseButton);
+        super.mouseClicked(Math.round(mouseX * scale), Math.round(mouseY * scale), mouseButton);
     }
 
     private void openSingleplayer() { mc.displayGuiScreen(new GuiWorldSelection(this)); }
@@ -355,12 +388,13 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
 
     private void label(String value, float x, float y, int color, float size) {
-        if (uiFont != null) {
+        UiFont selectedFont = size <= 10F && smallFont != null ? smallFont : uiFont;
+        if (selectedFont != null) {
             GlStateManager.pushMatrix();
-            float scale = Math.max(0.55F, size / 16F);
+            float scale = size / (selectedFont == smallFont ? 9F : 16F);
             GlStateManager.translate(x, y, 0F);
             GlStateManager.scale(scale, scale, 1F);
-            uiFont.draw(value, 0F, 0F, color);
+            selectedFont.draw(value, 0F, 0F, color);
             GlStateManager.popMatrix();
         } else {
             GlStateManager.pushMatrix();
@@ -373,16 +407,21 @@ public final class BackspaceMainMenu extends GuiScreen {
     }
 
     private int menuRowGap() {
+        int height = layoutHeight();
         if (height < 320) return 35;
         return Math.max(45, Math.min(56, Math.round(height * 0.095F)));
     }
     private int menuRowY() {
+        int height = layoutHeight();
         int lowerBound = brandY() + (height < 360 ? 76 : 106);
         int bottomBound = height - menuRowGap() * 3 - (height < 320 ? 44 : 58);
         return Math.max(16, Math.min(Math.max(lowerBound, Math.round(height * 0.42F)), bottomBound));
     }
-    private int leftMargin() { return Math.max(38, Math.min(154, Math.round(width * 0.085F))); }
-    private int brandY() { return Math.max(46, Math.min(height - 210, Math.round(height * 0.155F))); }
+    private int leftMargin() { return Math.max(38, Math.min(154, Math.round(layoutWidth() * 0.085F))); }
+    private int brandY() { int height = layoutHeight(); return Math.max(46, Math.min(height - 210, Math.round(height * 0.155F))); }
+    private float layoutScale() { return Math.min(1F, Math.min(width / 560F, height / 340F)); }
+    private int layoutWidth() { return Math.round(width / Math.max(0.01F, layoutScale())); }
+    private int layoutHeight() { return Math.round(height / Math.max(0.01F, layoutScale())); }
 
     private static boolean inside(int mx, int my, int x, int y, int right, int bottom) { return mx >= x && mx <= right && my >= y && my <= bottom; }
     private static float approach(float value, float target, float dt, float speed) { return value + (target - value) * (1F - (float)Math.exp(-Math.max(0F, dt) * speed)); }

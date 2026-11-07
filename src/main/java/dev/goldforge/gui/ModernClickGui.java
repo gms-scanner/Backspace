@@ -1,6 +1,7 @@
 package dev.goldforge.gui;
 
 import cc.polyfrost.oneconfig.libs.universal.UKeyboard;
+import cc.polyfrost.oneconfig.internal.gui.BlurHandler;
 import cc.polyfrost.oneconfig.renderer.NanoVGHelper;
 import cc.polyfrost.oneconfig.renderer.font.Fonts;
 import cc.polyfrost.oneconfig.utils.InputHandler;
@@ -94,6 +95,7 @@ public final class ModernClickGui extends OneUIScreen {
 
     @Override public void initScreen(int screenWidth, int screenHeight) {
         openedAt = System.currentTimeMillis();
+        BlurHandler.INSTANCE.reloadBlur(this);
     }
 
     @Override public boolean hasBackgroundBlur() { return true; }
@@ -380,6 +382,13 @@ public final class ModernClickGui extends OneUIScreen {
             if (rowHovered) hoveredSettingName = setting.name;
             String rowLabel = selectedModule instanceof Phase && "Phase mode".equals(setting.name)
                     ? "Mode: " + Phase.modeName(((Phase) selectedModule).mode) : setting.name;
+            if(setting.isToggle()){
+                marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, Math.max(18F,w - 124F), rowHovered);
+                text(vg, setting.isEnabled()?"ON":"OFF", x+w-91F, sy+4F, 10F, setting.isEnabled()?YELLOW:MUTED);
+                drawToggle(vg,input,x+w-62F,sy+7F,setting.isEnabled());
+                if(input.isAreaClicked(x+14F,sy,w-28F,31F)){setting.toggle();draggingSetting=null;}
+                continue;
+            }
             marqueeSetting(vg, setting, rowLabel, x + 24F, sy + 4F, w - 92F, rowHovered);
             textRight(vg, setting.formattedValue(), x + w - 24F, sy + 4F, 11F, YELLOW);
             float trackX = x + 24F, trackWidth = w - 48F;
@@ -410,9 +419,9 @@ public final class ModernClickGui extends OneUIScreen {
             if (state.offset < 0.5F) state.offset = 0;
         } else if (state.phase == 0) {
             state.timer += frameSeconds;
-            if (state.timer >= 0.45F) { state.phase = 1; state.timer = 0; }
+            if (state.timer >= hoverDelay(label)) { state.phase = 1; state.timer = 0; }
         } else if (state.phase == 1) {
-            state.offset += (overflow - state.offset) * (1F - (float) Math.exp(-2.8F * frameSeconds));
+            state.offset += (overflow - state.offset) * (1F - (float) Math.exp(-2.8F * frameSeconds / wordFactor(label)));
             if (overflow - state.offset < 0.5F) { state.offset = overflow; state.phase = 2; state.timer = 0; }
         } else if (state.phase == 2) {
             state.timer += frameSeconds;
@@ -433,6 +442,9 @@ public final class ModernClickGui extends OneUIScreen {
         text(vg, label, x - state.offset, y, 11F, TEXT);
         GL11.glScissor(previous.get(0), previous.get(1), previous.get(2), previous.get(3));
     }
+    private static int wordCount(String value){String trimmed=value.trim();return trimmed.isEmpty()?1:trimmed.split("\\s+").length;}
+    private static float wordFactor(String value){return Math.min(5F,1F+Math.max(0,wordCount(value)-1)*.22F);}
+    private static float hoverDelay(String value){return Math.min(1.8F,.45F+Math.max(0,wordCount(value)-1)*.12F);}
 
     private void action(long vg, InputHandler input, float x, float y, float w, String label, String value) {
         NanoVGHelper nvg = NanoVGHelper.INSTANCE;

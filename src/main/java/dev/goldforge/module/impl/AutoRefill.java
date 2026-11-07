@@ -18,7 +18,7 @@ public final class AutoRefill extends Module {
 
     @Override public void tick(){
         if(mc.player==null||mc.world==null||mc.playerController==null)return;
-        if(mc.currentScreen!=null||!mc.player.inventory.getItemStack().isEmpty()){cooldown=0;return;}
+        if(isAutomationBlockedByScreen()||!mc.player.inventory.getItemStack().isEmpty()){cooldown=0;return;}
         if(cooldown>0){cooldown--;return;}
         for(int hotbar=0;hotbar<9;hotbar++){
             ItemStack target=mc.player.inventory.getStackInSlot(hotbar);

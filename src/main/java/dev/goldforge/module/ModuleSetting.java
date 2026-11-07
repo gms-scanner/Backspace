@@ -34,6 +34,10 @@ public final class ModuleSetting {
         this.integral = integral;
     }
     public int get() { return (int) Math.round(getter.getAsDouble()); }
+    /** Binary integer options are presented as switches; continuous and multi-value settings remain sliders. */
+    public boolean isToggle() { return integral && min == 0D && max == 1D && step >= 1D; }
+    public boolean isEnabled() { return getDouble() >= 0.5D; }
+    public void toggle() { if (isToggle()) { setter.accept(isEnabled() ? 0D : 1D); ConfigManager.save(); } }
     public double getDouble() { return getter.getAsDouble(); }
     public double fraction() { return max == min ? 0 : Math.max(0, Math.min(1, (getDouble() - min) / (max - min))); }
     public String formattedValue() {

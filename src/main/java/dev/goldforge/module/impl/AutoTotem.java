@@ -20,40 +20,51 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Explosion;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.client.settings.KeyBinding;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
-/** Keeps a totem in the offhand and optionally eats a golden apple during lower-risk windows. */
+/** Keeps a totem in the offhand and completes golden-apple use at low health. */
 public final class AutoTotem extends Module {
     public int advanced=0, gapHealth=14, threatRadius=10,offhandCrystal=0,totemHealth=12;
+    public int gapCooldownTicks=10,enchantedHealth=6;
     private boolean startedGap;
-    private int scanDelay,gapRetry,gapReturnSlot=-1;
+    private boolean forcedUse;
+    private int scanDelay,gapRetry,gapReturnSlot=-1,gapHotbarSlot=-1,gapInventorySlot=-1;
+    private int gapPrepareTicks,gapUseTicks,gapStartCount,gapCooldown;
     private Threat cachedThreat=new Threat(0D,false,false);
 
     public AutoTotem(){
-        super("AutoTotem","Automatically equips an offhand totem; Advanced mode gaps at low health when crystal risk permits.",Category.PLAYER,0);
+        super("AutoTotem","Automatically equips an offhand totem; Advanced mode completes a gap at low health.",Category.PLAYER,0);
         addIntSetting("Advanced (0/1)",0,1,1,()->advanced,v->advanced=v);
         addIntSetting("Gap health",4,20,1,()->gapHealth,v->gapHealth=v);
         addIntSetting("Threat radius",4,16,1,()->threatRadius,v->threatRadius=v);
         addIntSetting("Offhand crystal (0/1)",0,1,1,()->offhandCrystal,v->offhandCrystal=v);
         addIntSetting("Totem health",4,20,1,()->totemHealth,v->totemHealth=v);
+        addIntSetting("Gap cooldown (ticks)",0,80,1,()->gapCooldownTicks,v->gapCooldownTicks=v);
+        addIntSetting("Enchanted gap health",2,20,1,()->enchantedHealth,v->enchantedHealth=v);
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null){stopGap();return;}
+        if(gapCooldown>0)gapCooldown--;
+        if(gapRetry>0)gapRetry--;
         if(scanDelay--<=0){cachedThreat=assessThreat();scanDelay=2;}
         double health=mc.player.getHealth()+mc.player.getAbsorptionAmount();
         boolean danger=health<=totemHealth||cachedThreat.lethal||cachedThreat.imminent
                 ||(cachedThreat.damage>0D&&cachedThreat.damage+2D>=health);
         ItemStack offhand=mc.player.getHeldItemOffhand();
-        if(danger||offhandCrystal==0){
+        boolean needsGap=advanced!=0&&(mc.player.getHealth()<=gapHealth||startedGap||gapReturnSlot>=0);
+        if(danger||offhandCrystal==0||needsGap){
             if(offhand.getItem()!=Items.TOTEM_OF_UNDYING){stopGap();if(findAndEquip(Items.TOTEM_OF_UNDYING))return;}
         }else if(offhand.getItem()!=Items.END_CRYSTAL){
             stopGap();
             if(findAndEquip(Items.END_CRYSTAL))return;
         }
-        if(advanced==0||mc.player.getHealth()+mc.player.getAbsorptionAmount()>gapHealth||cachedThreat.lethal||cachedThreat.imminent){
-            stopGap();return;
-        }
-        gapIfSafe();
+        if(advanced==0){stopGap();return;}
+        if(isAutomationBlockedByScreen()){stopGap();return;}
+        if(startedGap||gapReturnSlot>=0){continueGap();return;}
+        if(needsGap&&gapCooldown==0&&gapRetry==0)beginGap();
     }
 
     private boolean findAndEquip(net.minecraft.item.Item item){
@@ -63,32 +74,113 @@ public final class AutoTotem extends Module {
         mc.playerController.windowClick(mc.player.inventoryContainer.windowId,45,hotbar,ClickType.SWAP,mc.player);return true;
     }
 
-    private void gapIfSafe(){
-        if(mc.player.isHandActive()){
-            if(mc.player.getActiveHand()==EnumHand.MAIN_HAND&&mc.player.getHeldItemMainhand().getItem()==Items.GOLDEN_APPLE)startedGap=true;
+    private void beginGap(){
+        if(mc.player.isHandActive())return;
+        int slot=findApple();
+        if(slot<0)return;
+        gapReturnSlot=mc.player.inventory.currentItem;
+        gapHotbarSlot=slot<9?slot:freeHotbarSlot();
+        if(slot>=9){
+            if(mc.player.openContainer!=mc.player.inventoryContainer){clearGapState();return;}
+            gapInventorySlot=slot;
+            mc.playerController.windowClick(mc.player.inventoryContainer.windowId,slot,gapHotbarSlot,ClickType.SWAP,mc.player);
+            gapPrepareTicks=2; // Let the inventory transaction settle before using the apple.
             return;
         }
-        if(gapRetry>0){gapRetry--;return;}
-        int slot=findApple();
-        if(slot<0){stopGap();return;}
-        if(gapReturnSlot<0)gapReturnSlot=mc.player.inventory.currentItem;
-        mc.player.inventory.currentItem=slot;
+        startEating();
+    }
+
+    private void continueGap(){
+        if(startedGap){
+            boolean active=mc.player.isHandActive()&&mc.player.getActiveHand()==EnumHand.MAIN_HAND
+                    &&mc.player.getHeldItemMainhand().getItem()==Items.GOLDEN_APPLE;
+            if(active){gapUseTicks++;holdUse();return;}
+            int remaining=gapHotbarSlot<0?0:mc.player.inventory.getStackInSlot(gapHotbarSlot).getCount();
+            boolean consumed=remaining<gapStartCount||gapUseTicks>=30;
+            finishGap(consumed);
+            return;
+        }
+        if(gapPrepareTicks>0){gapPrepareTicks--;return;}
+        if(gapHotbarSlot>=0&&mc.player.inventory.getStackInSlot(gapHotbarSlot).getItem()==Items.GOLDEN_APPLE){
+            startEating();return;
+        }
+        finishGap(false);gapRetry=5;
+    }
+
+    private void startEating(){
+        if(mc.player.isHandActive()||gapHotbarSlot<0)return;
+        mc.player.inventory.currentItem=gapHotbarSlot;
+        mc.playerController.updateController();
+        ItemStack apple=mc.player.getHeldItemMainhand();
+        if(apple.getItem()!=Items.GOLDEN_APPLE){finishGap(false);gapRetry=3;return;}
+        gapStartCount=apple.getCount();
         mc.playerController.processRightClick(mc.player,mc.world,EnumHand.MAIN_HAND);
-        startedGap=mc.player.isHandActive()&&mc.player.getActiveHand()==EnumHand.MAIN_HAND;
-        gapRetry=startedGap?0:3;
+        startedGap=mc.player.isHandActive()&&mc.player.getActiveHand()==EnumHand.MAIN_HAND
+                &&mc.player.getHeldItemMainhand().getItem()==Items.GOLDEN_APPLE;
+        if(startedGap){gapUseTicks=0;holdUse();}
+        else {finishGap(false);gapRetry=3;}
     }
 
     private int findApple(){
-        int slot=InventoryManager.findItem(mc,Items.GOLDEN_APPLE);if(slot<0)return -1;
-        if(slot<9)return slot;int preferred=mc.player.inventory.currentItem;
-        return InventoryManager.moveToHotbar(mc,slot,preferred)?preferred:-1;
+        boolean enchanted=mc.player.getHealth()<=enchantedHealth;
+        for(int pass=0;pass<2;pass++)for(int slot=0;slot<36;slot++){
+            ItemStack stack=mc.player.inventory.getStackInSlot(slot);
+            if(stack.isEmpty()||stack.getItem()!=Items.GOLDEN_APPLE)continue;
+            if((stack.getMetadata()>0)==(pass==0?enchanted:!enchanted))return slot;
+        }
+        return -1;
+    }
+
+    private int freeHotbarSlot(){
+        for(int slot=0;slot<9;slot++)if(mc.player.inventory.getStackInSlot(slot).isEmpty())return slot;
+        return mc.player.inventory.currentItem;
+    }
+
+    private void holdUse(){
+        KeyBinding.setKeyBindState(mc.gameSettings.keyBindUseItem.getKeyCode(),true);
+        forcedUse=true;
+    }
+
+    private void releaseUse(){
+        if(!forcedUse)return;
+        int key=mc.gameSettings.keyBindUseItem.getKeyCode();
+        boolean physical=key>=0?Keyboard.isKeyDown(key):key>=-100&&key<=-85&&Mouse.isButtonDown(key+100);
+        KeyBinding.setKeyBindState(key,physical);
+        forcedUse=false;
+    }
+
+    private void finishGap(boolean consumed){
+        releaseUse();
+        restoreGapInventory();
+        clearGapState();
+        if(consumed)gapCooldown=Math.max(0,gapCooldownTicks);
+        else gapRetry=Math.max(gapRetry,3);
+    }
+
+    private void restoreGapInventory(){
+        if(mc.player==null)return;
+        if(gapInventorySlot>=9&&gapHotbarSlot>=0&&mc.playerController!=null
+                &&mc.player.openContainer==mc.player.inventoryContainer){
+            ItemStack hotbar=mc.player.inventory.getStackInSlot(gapHotbarSlot);
+            if(hotbar.isEmpty()||hotbar.getItem()==Items.GOLDEN_APPLE)
+                mc.playerController.windowClick(mc.player.inventoryContainer.windowId,
+                        gapInventorySlot,gapHotbarSlot,ClickType.SWAP,mc.player);
+        }
+        if(gapReturnSlot>=0&&gapHotbarSlot==mc.player.inventory.currentItem)
+            mc.player.inventory.currentItem=gapReturnSlot;
+    }
+
+    private void clearGapState(){
+        startedGap=false;gapReturnSlot=gapHotbarSlot=gapInventorySlot=-1;
+        gapPrepareTicks=gapUseTicks=gapStartCount=0;
     }
 
     private void stopGap(){
-        if(startedGap&&mc.player!=null&&mc.player.isHandActive()&&mc.player.getActiveHand()==EnumHand.MAIN_HAND)mc.playerController.onStoppedUsingItem(mc.player);
-        if(gapReturnSlot>=0&&mc.player!=null&&gapReturnSlot<9&&mc.player.inventory.getStackInSlot(gapReturnSlot).getItem()!=Items.GOLDEN_APPLE)mc.player.inventory.currentItem=gapReturnSlot;
-        startedGap=false;
-        gapReturnSlot=-1;gapRetry=0;
+        if(startedGap&&mc.player!=null&&mc.playerController!=null&&mc.player.isHandActive()
+                &&mc.player.getActiveHand()==EnumHand.MAIN_HAND
+                &&mc.player.getHeldItemMainhand().getItem()==Items.GOLDEN_APPLE)
+            mc.playerController.onStoppedUsingItem(mc.player);
+        releaseUse();restoreGapInventory();clearGapState();
     }
 
     /** Multiple warning signals: live crystal damage, likely opponent placements, and nearby held crystals. */
@@ -145,7 +237,7 @@ public final class AutoTotem extends Module {
         return Math.max(0D,raw);
     }
 
-    @Override protected void onDisable(){stopGap();scanDelay=0;cachedThreat=new Threat(0D,false,false);}
+    @Override protected void onDisable(){stopGap();scanDelay=gapRetry=gapCooldown=0;cachedThreat=new Threat(0D,false,false);}
 
     private static final class Threat{
         final double damage;final boolean lethal,imminent;

@@ -22,7 +22,7 @@ public final class FastUse extends Module {
         addIntSetting("Block placement (0/1)",0,1,1,()->blocks,v->blocks=v);
     }
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.currentScreen!=null||CLICK_DELAY==null||!mc.gameSettings.keyBindUseItem.isKeyDown())return;
+        if(mc.player==null||mc.world==null||isAutomationBlockedByScreen()||CLICK_DELAY==null||!mc.gameSettings.keyBindUseItem.isKeyDown())return;
         ItemStack stack=mc.player.getHeldItemMainhand();if(stack.isEmpty())return;
         boolean eligible=(consumables!=0&&(stack.getItem() instanceof ItemFood||stack.getItem() instanceof ItemPotion))
                 ||(bows!=0&&stack.getItem() instanceof ItemBow)||(blocks!=0&&stack.getItem() instanceof ItemBlock);

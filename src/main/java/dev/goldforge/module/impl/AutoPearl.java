@@ -21,7 +21,7 @@ public final class AutoPearl extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null){restore();return;}
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()){restore();return;}
         if(cooldown>0){cooldown--;return;}
         if(mc.player.isRiding()||mc.player.isElytraFlying()||mc.player.isInWater()||mc.player.onGround)return;
         float fall=mc.player.fallDistance;

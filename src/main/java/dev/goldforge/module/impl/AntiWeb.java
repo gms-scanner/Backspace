@@ -19,7 +19,7 @@ public final class AntiWeb extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         AxisAlignedBB box=mc.player.getEntityBoundingBox();
         int minX=(int)Math.floor(box.minX),maxX=(int)Math.floor(box.maxX);
         int minY=(int)Math.floor(box.minY),maxY=(int)Math.floor(box.maxY);

@@ -18,14 +18,15 @@ public final class AutoWeapon extends Module {
 
     public AutoWeapon(){
         super("AutoWeapon","Selects the strongest hotbar weapon only while attacking a targeted entity.",Category.COMBAT,0);
+        addEntitySelection(true);
         addIntSetting("Restore previous slot (0/1)",0,1,1,()->restoreSlot,v->restoreSlot=v);
     }
 
     @Override public void tick(){
         EntityPlayerSP player=mc.player;
-        if(player==null||mc.world==null||mc.currentScreen!=null||!mc.gameSettings.keyBindAttack.isKeyDown()) {restore();return;}
+        if(player==null||mc.world==null||isAutomationBlockedByScreen()||!mc.gameSettings.keyBindAttack.isKeyDown()) {restore();return;}
         RayTraceResult hit=mc.objectMouseOver;
-        if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||hit.entityHit==null){restore();return;}
+        if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||!acceptsEntity(hit.entityHit)){restore();return;}
         int best=-1;double bestScore=Double.NEGATIVE_INFINITY;
         for(int slot=0;slot<9;slot++){
             net.minecraft.item.ItemStack stack=player.inventory.getStackInSlot(slot);if(stack.isEmpty())continue;

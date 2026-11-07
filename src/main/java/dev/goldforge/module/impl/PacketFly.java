@@ -5,6 +5,7 @@ import dev.goldforge.module.Module;
 import dev.goldforge.network.PacketManager;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.network.play.client.CPacketPlayer;
+import net.minecraft.network.play.server.SPacketPlayerPosLook;
 
 /**
  * Experimental packet-driven flight profile for 1.12.2. Each client tick
@@ -13,6 +14,10 @@ import net.minecraft.network.play.client.CPacketPlayer;
  */
 public final class PacketFly extends Module {
     private int lastAntiKickTick = Integer.MIN_VALUE;
+    private int tickCounter,correctionCooldown,corrections;
+    private boolean requested;
+    /** 0 Direct, 1 Motion, 2 Pulse. All modes remain server dependent. */
+    public int mode=2,packetInterval=1,correctionPause=20;
 
     /** Horizontal blocks per tick, scaled by 100 for the integer setting UI. */
     public int horizontalSpeed = 100;
@@ -27,6 +32,9 @@ public final class PacketFly extends Module {
 
     public PacketFly() {
         super("PacketFly", "Experimental packet-driven flight profile.", Category.MOVEMENT, 0);
+        addIntSetting("Mode (0 Direct, 1 Motion, 2 Pulse)",0,2,1,()->mode,v->mode=v);
+        addIntSetting("Packet interval (ticks)",1,10,1,()->packetInterval,v->packetInterval=v);
+        addIntSetting("Pause after server correction",1,80,1,()->correctionPause,v->correctionPause=v);
         addIntSetting("Horizontal speed (x100)", 5, 400, 5,
                 () -> horizontalSpeed, v -> horizontalSpeed = v);
         addIntSetting("Vertical speed (x100)", 5, 200, 5,
@@ -42,18 +50,23 @@ public final class PacketFly extends Module {
     @Override
     protected void onEnable() {
         lastAntiKickTick = Integer.MIN_VALUE;
+        tickCounter=correctionCooldown=corrections=0;requested=false;
     }
 
     @Override
     protected void onDisable() {
         lastAntiKickTick = Integer.MIN_VALUE;
+        correctionCooldown=0;requested=false;
     }
 
     @Override
     public void tick() {
         EntityPlayerSP player = mc.player;
         if (player == null || mc.world == null || mc.getConnection() == null || player.movementInput == null
-                || player.isElytraFlying()) return;
+                || player.isElytraFlying() || player.isRiding()) return;
+        tickCounter++;
+        if(correctionCooldown>0){correctionCooldown--;return;}
+        if(tickCounter%Math.max(1,packetInterval)!=0)return;
 
         double forward = player.movementInput.moveForward;
         double strafe = player.movementInput.moveStrafe;
@@ -90,10 +103,21 @@ public final class PacketFly extends Module {
         player.motionZ = 0.0D;
         player.fallDistance = 0.0F;
 
-        if (pulse > 0.0D) {
+        if(mode==2&&pulse>0.0D) {
             PacketManager.send(new CPacketPlayer.Position(targetX, targetY + pulse, targetZ, onGround), name);
         }
-        PacketManager.send(new CPacketPlayer.Position(targetX, targetY, targetZ, onGround), name);
+        if(mode!=1)requested=PacketManager.send(new CPacketPlayer.Position(targetX,targetY,targetZ,onGround),name);
+    }
+
+    /** A server position packet is an authoritative correction, not proof that prior packets succeeded. */
+    public void onServerCorrection(SPacketPlayerPosLook packet){
+        if(!enabled||!requested)return;
+        corrections++;requested=false;
+        correctionCooldown=Math.max(1,correctionPause);
+    }
+    @Override public String hudTag(){
+        return "["+(mode==1?"Motion":mode==0?"Direct":"Pulse")+" C:"+corrections
+                +(correctionCooldown>0?" Paused":"")+"]";
     }
 
     private static int clamp(int value, int min, int max) {

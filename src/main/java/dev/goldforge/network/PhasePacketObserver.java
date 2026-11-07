@@ -9,9 +9,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.client.CPacketPlayer;
 import net.minecraft.network.play.server.SPacketPlayerPosLook;
+import net.minecraft.network.play.server.SPacketSetPassengers;
+import net.minecraft.network.play.server.SPacketMoveVehicle;
 import net.minecraft.network.play.server.SPacketEntityVelocity;
 import net.minecraft.network.play.server.SPacketExplosion;
 import net.minecraft.network.play.server.SPacketBlockChange;
+import net.minecraft.network.play.server.SPacketMultiBlockChange;
 import net.minecraft.network.play.server.SPacketBlockBreakAnim;
 import net.minecraft.network.play.server.SPacketEntityStatus;
 import net.minecraft.network.play.server.SPacketPlayerListItem;
@@ -23,9 +26,18 @@ import dev.goldforge.module.impl.NoFall;
 import dev.goldforge.module.impl.GroundSpoof;
 import dev.goldforge.module.impl.CraftCarry;
 import dev.goldforge.module.impl.Scaffold;
+import dev.goldforge.module.impl.RecentSurroundBlocks;
 import dev.goldforge.module.impl.BreakESP;
 import dev.goldforge.module.impl.PopChams;
 import dev.goldforge.module.impl.LogoutSpots;
+import dev.goldforge.module.impl.BoatFly;
+import dev.goldforge.module.impl.EntityFly;
+import dev.goldforge.module.impl.ReplicationDebug;
+import dev.goldforge.module.impl.Blink;
+import dev.goldforge.module.impl.NoRotate;
+import dev.goldforge.module.impl.PacketMine;
+import dev.goldforge.module.impl.Burrow;
+import dev.goldforge.module.impl.EntityDesync;
 
 /** Read-only observer for server position corrections, used by Phase diagnostics. */
 public final class PhasePacketObserver {
@@ -96,12 +108,43 @@ public final class PhasePacketObserver {
                         Runnable capture=new Runnable(){@Override public void run(){
                             if(record!=null)Phase.captureCorrectionClientPreApply(record);
                             if(packetFlyRecord!=null)PacketFlyLab.captureCorrectionPreApply(packetFlyRecord);
+                            if(client.player!=null)ReplicationDebug.playerPosition(packet,
+                                    client.player.posX,client.player.posY,client.player.posZ);
+                            dev.goldforge.module.Module packetFly=dev.goldforge.GoldForge.MODULES.get("PacketFly");
+                            if(packetFly instanceof dev.goldforge.module.impl.PacketFly)
+                                ((dev.goldforge.module.impl.PacketFly)packetFly).onServerCorrection(packet);
+                            dev.goldforge.module.Module burrow=dev.goldforge.GoldForge.MODULES.get("Burrow");
+                            if(burrow instanceof Burrow)((Burrow)burrow).onServerCorrection(packet);
+                            dev.goldforge.module.Module pearlPhase=dev.goldforge.GoldForge.MODULES.get("Phase");
+                            if(pearlPhase instanceof Phase)
+                                ((Phase)pearlPhase).observePearlPosition();
                             dev.goldforge.module.impl.Speed.onServerCorrection();
                         }};
                         // Queue correction resets before packet_handler queues application
                         // of the S08 packet, preserving the existing client-thread ordering.
                         if(client.isCallingFromMinecraftThread())capture.run();
                         else client.addScheduledTask(capture);
+                    }
+                    if(message instanceof SPacketMoveVehicle){
+                        final SPacketMoveVehicle packet=(SPacketMoveVehicle)message;
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable capture=()->{
+                            dev.goldforge.module.Module boat=dev.goldforge.GoldForge.MODULES.get("BoatFly");
+                            dev.goldforge.module.Module entity=dev.goldforge.GoldForge.MODULES.get("EntityFly");
+                            if(boat instanceof BoatFly)((BoatFly)boat).onServerCorrection(packet);
+                            if(entity instanceof EntityFly)((EntityFly)entity).onServerCorrection(packet);
+                            ReplicationDebug.vehiclePosition(packet);
+                        };
+                        if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
+                    }
+                    if(message instanceof SPacketSetPassengers){
+                        final SPacketSetPassengers packet=(SPacketSetPassengers)message;
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable capture=()->{
+                            dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("EntityDesync");
+                            if(module instanceof EntityDesync)((EntityDesync)module).onPassengerPacket(packet);
+                        };
+                        if(client.isCallingFromMinecraftThread())capture.run();else client.addScheduledTask(capture);
                     }
                     if(message instanceof SPacketEntityVelocity){
                         // Only retain the packet's primitive id on Netty. Player/module
@@ -118,12 +161,37 @@ public final class PhasePacketObserver {
                         Runnable apply=new Runnable(){@Override public void run(){
                             dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
                             if(module instanceof Scaffold)((Scaffold)module).onServerBlockChange(pos,state);
+                            RecentSurroundBlocks.onServerUpdate(pos,state);
+                            dev.goldforge.module.Module packetMine=dev.goldforge.GoldForge.MODULES.get("PacketMine");
+                            dev.goldforge.module.Module burrow=dev.goldforge.GoldForge.MODULES.get("Burrow");
+                            if(packetMine instanceof PacketMine)((PacketMine)packetMine).onServerBlockChange(pos,state);
+                            if(burrow instanceof Burrow)((Burrow)burrow).onServerBlockChange(pos,state);
                         }};
                         // Capture the authoritative reply before packet_handler may defer it.
                         // Scaffold also checks the world state before using the new support.
                         if(client.isCallingFromMinecraftThread())apply.run();
                         else client.addScheduledTask(apply);
                     }
+                    if(message instanceof SPacketMultiBlockChange){
+                        final SPacketMultiBlockChange.BlockUpdateData[] updates=
+                                ((SPacketMultiBlockChange)message).getChangedBlocks();
+                        final Minecraft client=Minecraft.getMinecraft();
+                        Runnable apply=new Runnable(){@Override public void run(){
+                            dev.goldforge.module.Module module=dev.goldforge.GoldForge.MODULES.get("Scaffold");
+                            for(SPacketMultiBlockChange.BlockUpdateData update:updates){
+                                if(module instanceof Scaffold)((Scaffold)module).onServerBlockChange(update.getPos(),update.getBlockState());
+                                RecentSurroundBlocks.onServerUpdate(update.getPos(),update.getBlockState());
+                                dev.goldforge.module.Module packetMine=dev.goldforge.GoldForge.MODULES.get("PacketMine");
+                                dev.goldforge.module.Module burrow=dev.goldforge.GoldForge.MODULES.get("Burrow");
+                                if(packetMine instanceof PacketMine)((PacketMine)packetMine).onServerBlockChange(update.getPos(),update.getBlockState());
+                                if(burrow instanceof Burrow)((Burrow)burrow).onServerBlockChange(update.getPos(),update.getBlockState());
+                            }
+                        }};
+                        if(client.isCallingFromMinecraftThread())apply.run();
+                        else client.addScheduledTask(apply);
+                    }
+                    if(message instanceof SPacketPlayerPosLook)
+                        message=NoRotate.rewrite((SPacketPlayerPosLook)message);
                     super.channelRead(context,message);
                     if(velocityEntityId!=-1){
                         final int entityId=velocityEntityId;
@@ -157,9 +225,13 @@ public final class PhasePacketObserver {
                     if(message instanceof CPacketPlayer){
                         message=NoFall.rewrite((CPacketPlayer)message);
                         message=GroundSpoof.rewrite((CPacketPlayer)message);
+                    }
+                    if(Blink.intercept(message,context,promise))return;
+                    if(message instanceof CPacketPlayer){
                         Phase.recordOutgoingMovement((CPacketPlayer)message);
                         PacketFlyLab.recordOutbound((CPacketPlayer)message);
                     }
+                    ReplicationDebug.outgoing(message);
                     super.write(context,message,promise);
                 }
             });

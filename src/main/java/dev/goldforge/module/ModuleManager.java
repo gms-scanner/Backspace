@@ -2,6 +2,8 @@ package dev.goldforge.module;
 
 import dev.goldforge.module.impl.*;
 import dev.goldforge.network.PhasePacketObserver;
+import dev.goldforge.discovery.ChunkScanService;
+import dev.goldforge.discovery.DiscoveryDatabase;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
@@ -12,6 +14,7 @@ import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.RenderPlayer;
@@ -31,38 +34,57 @@ public final class ModuleManager {
     private final Map<String,Long> timings=new LinkedHashMap<String,Long>();
     private final Map<String,TimingWindow> timingWindows=new LinkedHashMap<String,TimingWindow>();
     private final Set<RenderPlayer> capeLayerRenderers=Collections.newSetFromMap(new WeakHashMap<RenderPlayer,Boolean>());
+    private final ChunkScanService chunkScanner=new ChunkScanService();
     private boolean resumePending;
     public ModuleManager() {
-        modules.add(new TreeBurner()); modules.add(new Staircase()); modules.add(new Speed()); modules.add(new NoSlow()); modules.add(new AutoSprint()); modules.add(new SafeWalk()); modules.add(new Step()); modules.add(new Phase()); modules.add(new PacketFly()); modules.add(new ElytraFly()); modules.add(new NoFall()); modules.add(new GroundSpoof()); modules.add(new AntiLevitate()); modules.add(new PacketFlyLab()); modules.add(new AutoWither()); modules.add(new AutoFire()); modules.add(new AutoTNT()); modules.add(new AutoTorch()); modules.add(new LavaCast()); modules.add(new Freecam());
-        modules.add(new CustomChat()); modules.add(new AutoReconnect()); modules.add(new PingSpoof()); modules.add(new WhisperSpam()); modules.add(new BoatPhase()); modules.add(new InventoryHud());
-        modules.add(new AutoNuker()); modules.add(new AutoLava()); modules.add(new CrystalAura()); modules.add(new KillAura()); modules.add(new AutoCity()); modules.add(new AutoMine()); modules.add(new HoleFill()); modules.add(new WebTrap()); modules.add(new AutoTrap()); modules.add(new AntiWeb()); modules.add(new AutoPot()); modules.add(new TriggerBot()); modules.add(new ShieldBreak()); modules.add(new NoHitDelay()); modules.add(new WTap()); modules.add(new BowAssist()); modules.add(new AutoWeapon()); modules.add(new Criticals()); modules.add(new Velocity()); modules.add(new AutoTotem()); modules.add(new AutoEat()); modules.add(new AutoPearl()); modules.add(new AutoFish()); modules.add(new AutoMend()); modules.add(new AutoShear()); modules.add(new DurabilityAlert()); modules.add(new AutoWalk()); modules.add(new AutoTool()); modules.add(new AutoArmor()); modules.add(new AutoRefill()); modules.add(new AutoRespawn()); modules.add(new AutoLog()); modules.add(new FakePlayer()); modules.add(new AutoBanner()); modules.add(new Scaffold());
-        modules.add(new ChunkBanHelper()); modules.add(new BookBanHelper()); modules.add(new AutoSign()); modules.add(new FastBreak()); modules.add(new Printer());
-        modules.add(new FastUse()); modules.add(new CraftCarry());
+        modules.add(new TreeBurner()); modules.add(new Staircase()); modules.add(new Speed()); modules.add(new NoSlow()); modules.add(new AutoSprint()); modules.add(new SafeWalk()); modules.add(new Step()); modules.add(new Phase()); modules.add(new PacketFly()); modules.add(new BoatFly()); modules.add(new EntityFly()); modules.add(new EntityDesync()); modules.add(new Blink()); modules.add(new ElytraFly()); modules.add(new Flight()); modules.add(new NoFall()); modules.add(new AntiVoid()); modules.add(new AntiHunger()); modules.add(new NoRotate()); modules.add(new GroundSpoof()); modules.add(new AntiLevitate()); modules.add(new PacketFlyLab()); modules.add(new AutoWither()); modules.add(new AutoFire()); modules.add(new AutoTNT()); modules.add(new AutoTorch()); modules.add(new LavaCast()); modules.add(new EChestFarm()); modules.add(new Freecam());
+        modules.add(new CustomChat()); modules.add(new AutoReconnect()); modules.add(new PingSpoof()); modules.add(new WhisperSpam()); modules.add(new Spam()); modules.add(new TrailMaker()); modules.add(new BlockFilter()); modules.add(new BoatPhase()); modules.add(new InventoryHud());
+        modules.add(new AutoNuker()); modules.add(new AutoLava()); modules.add(new CrystalAura()); modules.add(new KillAura()); modules.add(new AutoCity()); modules.add(new AutoMine()); modules.add(new Burrow()); modules.add(new HoleFill()); modules.add(new WebTrap()); modules.add(new AutoTrap()); modules.add(new AntiWeb()); modules.add(new AutoPot()); modules.add(new TriggerBot()); modules.add(new ShieldBreak()); modules.add(new NoHitDelay()); modules.add(new WTap()); modules.add(new BowAssist()); modules.add(new AutoWeapon()); modules.add(new Criticals()); modules.add(new Velocity()); modules.add(new AutoTotem()); modules.add(new AutoEat()); modules.add(new AutoPearl()); modules.add(new AutoFish()); modules.add(new AutoMend()); modules.add(new AutoShear()); modules.add(new DurabilityAlert()); modules.add(new AutoWalk()); modules.add(new AutoTool()); modules.add(new AutoArmor()); modules.add(new AutoRefill()); modules.add(new AutoRespawn()); modules.add(new AutoLog()); modules.add(new FakePlayer()); modules.add(new AutoBanner()); modules.add(new Scaffold());
+        modules.add(new ChunkBanHelper()); modules.add(new BookBanHelper()); modules.add(new AutoSign()); modules.add(new FastBreak()); modules.add(new PacketMine()); modules.add(new Printer());
+        modules.add(new FastUse()); modules.add(new MultiTask()); modules.add(new CraftCarry());
         modules.add(new Surround()); modules.add(new SelfTrap()); modules.add(new WitherPreview()); modules.add(new BaseFinder()); modules.add(new HudArrayList()); modules.add(new NoRender());
-        modules.add(new Snapper()); modules.add(new PlayerESP()); modules.add(new Nametags()); modules.add(new Radar()); modules.add(new ColorEnchant()); modules.add(new ShaderFX()); modules.add(new Hands()); modules.add(new KillFX()); modules.add(new WaypointESP()); modules.add(new HudInfo()); modules.add(new LagWatch()); modules.add(new BlockESP()); modules.add(new BreakESP()); modules.add(new PopChams()); modules.add(new LogoutSpots()); modules.add(new PearlTrace()); modules.add(new Fullbright()); modules.add(new Cape()); modules.add(new NewChunks());
+        modules.add(new Snapper()); modules.add(new PlayerESP()); modules.add(new Nametags()); modules.add(new Radar()); modules.add(new ColorEnchant()); modules.add(new ShaderFX()); modules.add(new Hands()); modules.add(new KillFX()); modules.add(new WaypointESP()); modules.add(new HudInfo()); modules.add(new LagWatch()); modules.add(new ReplicationDebug()); modules.add(new BlockESP()); modules.add(new BreakESP()); modules.add(new PopChams()); modules.add(new LogoutSpots()); modules.add(new PearlTrace()); modules.add(new Fullbright()); modules.add(new Cape()); modules.add(new NewChunks());
         modules.add(new Jesus()); modules.add(new DIESP());
+        modules.add(new StashTracker());modules.add(new TrailFinder());modules.add(new HighwayAnalyzer());modules.add(new PortalTracker());
+        modules.add(new WaypointNavigator());modules.add(new SessionStats());modules.add(new PerformanceProfiler());
+        modules.add(new DiscoveryNotifier());modules.add(new AutoScreenshot());
+        modules.add(new ExpeditionMode());
+        modules.add(new ShulkerPreview());
         for(Category category:Category.values())byCategory.put(category,new ArrayList<Module>());
         for(Module module:modules)byCategory.get(module.category).add(module);
         for(Category category:Category.values())byCategory.put(category,Collections.unmodifiableList(byCategory.get(category)));
+        for(Module module:modules)if(module instanceof ChunkScanService.Listener)chunkScanner.addListener((ChunkScanService.Listener)module);
     }
     public List<Module> all() { return Collections.unmodifiableList(modules); }
     public List<Module> in(Category category) { List<Module> result=byCategory.get(category);return result==null?Collections.<Module>emptyList():result; }
     public Module get(String name) { for (Module m : modules) if (m.name.equalsIgnoreCase(name)) return m; return null; }
+    public ChunkScanService chunkScanner(){return chunkScanner;}
     public void onKey(int key) { for (Module m : modules) if (key != 0 && key == m.key) safe(m,"key-toggle",new Runnable(){@Override public void run(){m.toggle();}}); }
     @SubscribeEvent public void tick(TickEvent.ClientTickEvent event) {
+        Minecraft.getMinecraft().gameSettings.pauseOnLostFocus=false;
         if (event.phase == TickEvent.Phase.END) {
             Minecraft mc=Minecraft.getMinecraft();
             PhasePacketObserver.ensureInstalled();
+            if(mc.world!=null&&mc.player!=null){DiscoveryDatabase.tick();if(scannerNeeded())chunkScanner.tick();}
             MovementManager.beginClientTick();
             if(mc.player!=null&&mc.world!=null){
                 dev.goldforge.ConfigManager.applyServerProfileIfAvailable();
                 dev.goldforge.ConfigManager.restoreEnabled();
                 if(resumePending){for(Module module:modules)module.resumeAfterWorldChange();resumePending=false;}
+                MovementConflictManager.reconcile(modules);
             }
             for (Module m : modules) if (m.enabled&&!m.isSuspended()) safe(m,"tick",new Runnable(){@Override public void run(){m.tick();}});
             MovementManager.commitClientTick();
             MovementReplay.tick();
         }
+    }
+    @SubscribeEvent public void crystalSpawn(EntityJoinWorldEvent event){
+        if(!(event.getEntity() instanceof net.minecraft.entity.item.EntityEnderCrystal)
+                ||event.getWorld()!=Minecraft.getMinecraft().world)return;
+        final Module module=get("CrystalAura");
+        if(module instanceof CrystalAura&&module.enabled&&!module.isSuspended())
+            safe(module,"spawn-break",()->((CrystalAura)module).onCrystalSpawn(
+                    (net.minecraft.entity.item.EntityEnderCrystal)event.getEntity()));
     }
     @SubscribeEvent public void render(RenderWorldLastEvent event) {
         for (final Module m : modules) if (m.enabled&&!m.isSuspended()) {
@@ -104,9 +126,9 @@ public final class ModuleManager {
     @SubscribeEvent public void overlayPre(RenderGameOverlayEvent.Pre event) {
         for(final Module module:modules) if(module.enabled&&!module.isSuspended())safe(module,"overlay-pre",new Runnable(){@Override public void run(){module.onOverlayPre(event);}});
     }
-    @SubscribeEvent public void worldUnload(WorldEvent.Unload event){if(event.getWorld()!=null&&event.getWorld().isRemote){MovementManager.clear();MovementReplay.worldChanged();for(Module module:modules)module.suspendForWorldChange();}}
+    @SubscribeEvent public void worldUnload(WorldEvent.Unload event){if(event.getWorld()!=null&&event.getWorld().isRemote){DiscoveryDatabase.worldChanged();chunkScanner.clear();MovementManager.clear();MovementReplay.worldChanged();for(Module module:modules)module.suspendForWorldChange();}}
     @SubscribeEvent public void worldLoad(WorldEvent.Load event){if(event.getWorld()!=null&&event.getWorld().isRemote)resumePending=true;}
-    @SubscribeEvent public void chunkLoad(ChunkEvent.Load event){if(event.getWorld()==null||!event.getWorld().isRemote)return;Module module=get("NewChunks");if(module instanceof NewChunks&&module.enabled&&!module.isSuspended())safe(module,"chunk-load",new Runnable(){@Override public void run(){((NewChunks)module).onChunkLoad(event.getChunk());}});}
+    @SubscribeEvent public void chunkLoad(ChunkEvent.Load event){if(event.getWorld()==null||!event.getWorld().isRemote)return;chunkScanner.enqueue(event.getChunk());Module module=get("NewChunks");if(module instanceof NewChunks&&module.enabled&&!module.isSuspended())safe(module,"chunk-load",new Runnable(){@Override public void run(){((NewChunks)module).onChunkLoad(event.getChunk());}});}
     @SubscribeEvent public void sound(net.minecraftforge.client.event.sound.PlaySoundEvent event) {
         Module module=get("NoRender");
         if(module instanceof NoRender && module.enabled)safe(module,"sound",new Runnable(){@Override public void run(){((NoRender)module).onSound(event);}});
@@ -121,6 +143,10 @@ public final class ModuleManager {
     }
     @SubscribeEvent public void guiInit(GuiScreenEvent.InitGuiEvent.Post event){
         Module module=get("AutoSign");if(module instanceof AutoSign&&module.enabled&&!module.isSuspended())((AutoSign)module).init(event);
+    }
+    @SubscribeEvent public void itemTooltip(net.minecraftforge.event.entity.player.ItemTooltipEvent event){
+        Module module=get("ShulkerPreview+");
+        if(module instanceof ShulkerPreview&&module.enabled&&!module.isSuspended())safe(module,"tooltip",()->((ShulkerPreview)module).tooltip(event));
     }
     @SubscribeEvent public void livingSpecials(RenderLivingEvent.Specials.Pre event){
         Module shader=get("ShaderFX");
@@ -139,6 +165,7 @@ public final class ModuleManager {
     }
 
     public Map<String,Long> recentTimingsNanos(){return Collections.unmodifiableMap(new LinkedHashMap<String,Long>(timings));}
+    private boolean scannerNeeded(){for(Module module:modules)if(module instanceof ChunkScanService.Listener&&module.enabled&&!module.isSuspended())return true;return false;}
     public Map<String,Long> averageTimingsNanos(){Map<String,Long> result=new LinkedHashMap<String,Long>();for(Map.Entry<String,TimingWindow> entry:timingWindows.entrySet())result.put(entry.getKey(),entry.getValue().average());return Collections.unmodifiableMap(result);}
 
     private void safe(Module module,String hook,Runnable action){

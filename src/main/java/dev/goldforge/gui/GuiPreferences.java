@@ -5,7 +5,9 @@ import java.util.Properties;
 
 /** Persistent ClickGUI presentation preferences. */
 public final class GuiPreferences {
+    public static int menuShader = 0;
     public static int layout = 1;
+    public static int customAccent = -1;
     public static int theme = 0; // gold, red, mint, blue
     public static int pixelTransparency = 37; // 0 is opaque; 100 reveals the world
     public static final int[] panelX = new int[Category.values().length];
@@ -15,6 +17,8 @@ public final class GuiPreferences {
     private GuiPreferences() {}
 
     public static void load(Properties values) {
+        menuShader = clamp(read(values, "gui.menuShader", 0), 0, 10);
+        customAccent = clamp(read(values, "gui.customAccent", -1), -1, 0xFFFFFF);
         layout = clamp(read(values, "gui.layout", layout), 0, 1);
         theme = clamp(read(values, "gui.theme", theme), 0, 3);
         pixelTransparency = values.containsKey("gui.pixel.transparency")
@@ -29,6 +33,8 @@ public final class GuiPreferences {
         }
     }
     public static void save(Properties values) {
+        values.setProperty("gui.menuShader", Integer.toString(clamp(menuShader, 0, 10)));
+        values.setProperty("gui.customAccent", Integer.toString(customAccent));
         values.setProperty("gui.layout", Integer.toString(clamp(layout, 0, 1)));
         values.setProperty("gui.theme", Integer.toString(clamp(theme, 0, 3)));
         values.setProperty("gui.pixel.transparency", Integer.toString(clamp(pixelTransparency, 0, 100)));

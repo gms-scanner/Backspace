@@ -16,6 +16,7 @@ public final class BowAssist extends Module {
 
     public BowAssist(){
         super("BowAssist","Leads a visible player using 1.12 bow charge and projectile gravity while drawing.",Category.COMBAT,0);
+        addEntitySelection(false);
         addIntSetting("Target range",8,64,4,()->targetRange,v->targetRange=v);
         addIntSetting("Maximum aim angle",10,90,5,()->maxAimAngle,v->maxAimAngle=v);
         addIntSetting("Minimum draw ticks",1,20,1,()->minChargeTicks,v->minChargeTicks=v);
@@ -25,7 +26,7 @@ public final class BowAssist extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.getConnection()==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||mc.getConnection()==null||isAutomationBlockedByScreen())return;
         if(mc.player.getHeldItemMainhand().getItem()!=Items.BOW||!mc.player.isHandActive()||mc.player.getActiveHand()!=net.minecraft.util.EnumHand.MAIN_HAND)return;
         int drawTicks=72000-mc.player.getItemInUseCount();
         if(drawTicks<minChargeTicks)return;
@@ -41,6 +42,7 @@ public final class BowAssist extends Module {
     private EntityPlayer findTarget(){
         EntityPlayer best=null;double bestAngle=Double.MAX_VALUE;double range=targetRange;
         for(EntityPlayer player:mc.world.playerEntities){
+            if(!acceptsEntity(player))continue;
             if(player==mc.player||player.isDead||player.getHealth()<=0F||player.isSpectator())continue;
             if(friendFilter!=0&&FriendManager.isFriend(player.getName()))continue;
             double distance=mc.player.getDistance(player);if(distance>range||!mc.player.canEntityBeSeen(player))continue;

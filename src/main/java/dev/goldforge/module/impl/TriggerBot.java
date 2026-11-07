@@ -16,6 +16,7 @@ public final class TriggerBot extends Module {
 
     public TriggerBot(){
         super("TriggerBot","Attacks the player under your crosshair when your weapon cooldown is ready.",Category.COMBAT,0);
+        addEntitySelection(true);
         addIntSetting("Minimum attack strength (%)",10,100,5,()->minimumStrength,v->minimumStrength=v);
         addIntSetting("Extra delay (ticks)",0,20,1,()->extraDelay,v->extraDelay=v);
         addIntSetting("Ignore friends (0/1)",0,1,1,()->friendFilter,v->friendFilter=v);
@@ -24,14 +25,16 @@ public final class TriggerBot extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null)return;
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen())return;
         if(cooldown>0){cooldown--;return;}
         if(requireAttackKey!=0&&!mc.gameSettings.keyBindAttack.isKeyDown())return;
         RayTraceResult hit=mc.objectMouseOver;
-        if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||!(hit.entityHit instanceof EntityPlayer))return;
-        EntityPlayer target=(EntityPlayer)hit.entityHit;
-        if(target==mc.player||target.isDead||target.getHealth()<=0F||target.isSpectator())return;
-        if(friendFilter!=0&&FriendManager.isFriend(target.getName()))return;
+        if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||!(hit.entityHit instanceof net.minecraft.entity.EntityLivingBase))return;
+        net.minecraft.entity.EntityLivingBase target=(net.minecraft.entity.EntityLivingBase)hit.entityHit;
+        if(!acceptsEntity(target))return;
+        if(target==mc.player||target.isDead||target.getHealth()<=0F
+                ||target instanceof EntityPlayer&&((EntityPlayer)target).isSpectator())return;
+        if(target instanceof EntityPlayer&&friendFilter!=0&&FriendManager.isFriend(target.getName()))return;
         double reach=mc.playerController.getBlockReachDistance();
         if(mc.player.getDistanceSq(target)>reach*reach)return;
         if(weaponOnly!=0&&!(mc.player.getHeldItemMainhand().getItem() instanceof ItemSword)&&!(mc.player.getHeldItemMainhand().getItem() instanceof ItemAxe))return;

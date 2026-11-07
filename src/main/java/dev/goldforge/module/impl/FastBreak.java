@@ -25,7 +25,7 @@ public final class FastBreak extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()
                 ||!mc.gameSettings.keyBindAttack.isKeyDown()||mc.objectMouseOver==null
                 ||mc.objectMouseOver.typeOfHit!=RayTraceResult.Type.BLOCK)return;
         BlockPos pos=mc.objectMouseOver.getBlockPos();if(pos==null)return;

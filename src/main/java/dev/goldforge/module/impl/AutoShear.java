@@ -21,7 +21,7 @@ public final class AutoShear extends Module {
     }
 
     @Override public void tick(){
-        if(mc.player==null||mc.world==null||mc.playerController==null||mc.currentScreen!=null){restore();return;}
+        if(mc.player==null||mc.world==null||mc.playerController==null||isAutomationBlockedByScreen()){restore();return;}
         if(cooldown>0){cooldown--;return;}
         RayTraceResult hit=mc.objectMouseOver;
         if(hit==null||hit.typeOfHit!=RayTraceResult.Type.ENTITY||!(hit.entityHit instanceof EntitySheep))return;

@@ -22,16 +22,23 @@ public final class ElytraFly extends Module {
     public int packetPulse = 625;
     /** Integer-backed toggle for the movement packet onGround field. */
     public int spoofGround = 0;
+    public boolean autoTakeoff=true, brakeOnRelease=true;
+    private boolean launchArmed, jumpHeld;
+    private int launchTicks, launchRequests, retryDelay, launchLiftTicks;
+    private boolean wasGliding, leftGround;
+    private String flightStatus="Ready";
 
     public ElytraFly() {
         super("ElytraFly", "Configurable Elytra steering and packet movement profiles.", Category.MOVEMENT, 0);
-        addIntSetting("Mode (0 Control, 1 Packet, 2 Both)", 0, 2, 1, () -> mode, v -> mode = v);
-        addDoubleSetting("Horizontal speed", 0.2, 5, 0.05,
-                () -> horizontalSpeed / 100.0, v -> horizontalSpeed = (int) Math.round(v * 100));
-        addDoubleSetting("Steering", 0.001, 0.2, 0.001,
+        addIntSetting("Auto takeoff",0,1,1,()->autoTakeoff?1:0,v->autoTakeoff=v!=0);
+        addIntSetting("Brake on release",0,1,1,()->brakeOnRelease?1:0,v->brakeOnRelease=v!=0);
+        addIntSetting("Experimental packet assist",0,1,1,()->mode==0?0:1,v->mode=v==0?0:2);
+        addDoubleSetting("Flight speed (blocks/sec)", 4, 100, 1,
+                () -> horizontalSpeed / 5.0, v -> horizontalSpeed = (int) Math.round(v * 5));
+        addDoubleSetting("Turn acceleration", 0.001, 0.2, 0.001,
                 () -> steering / 1000.0, v -> steering = (int) Math.round(v * 1000));
-        addDoubleSetting("Vertical speed", 0.05, 2, 0.05,
-                () -> verticalSpeed / 100.0, v -> verticalSpeed = (int) Math.round(v * 100));
+        addDoubleSetting("Up/down (blocks/sec)", 1, 40, 1,
+                () -> verticalSpeed / 5.0, v -> verticalSpeed = (int) Math.round(v * 5));
         addDoubleSetting("Packet multiplier", 1, 4, 0.05,
                 () -> packetMultiplier / 100.0, v -> packetMultiplier = (int) Math.round(v * 100));
         addDoubleSetting("Packet pulse", 0, 0.2, 0.0025,
@@ -41,17 +48,72 @@ public final class ElytraFly extends Module {
 
     @Override
     public String hudTag() {
-        return "[" + (mode == 1 ? "Packet" : mode == 2 ? "Both" : "Control") + "]";
+        return flightStatus;
     }
+    @Override protected void onEnable(){launchArmed=true;jumpHeld=false;launchTicks=0;launchRequests=0;retryDelay=0;wasGliding=false;leftGround=false;launchLiftTicks=0;}
+    @Override protected void onDisable(){launchArmed=false;launchTicks=0;launchRequests=0;flightStatus="Ready";}
 
     @Override
     public void tick() {
         EntityPlayerSP player = mc.player;
-        if (player == null || mc.world == null || mc.getConnection() == null || !player.isElytraFlying()) return;
+        if (player == null || mc.world == null || mc.getConnection() == null) return;
+        if(isAutomationBlockedByScreen()){flightStatus="Inventory open";return;}
+        net.minecraft.item.ItemStack chest=player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST);
+        if(chest.getItem()!=net.minecraft.init.Items.ELYTRA || !net.minecraft.item.ItemElytra.isUsable(chest)){
+            flightStatus="Equip usable Elytra";return;
+        }
+        boolean jump=mc.gameSettings.keyBindJump.isKeyDown();
+        if(jump&&!jumpHeld&&!player.isElytraFlying()&&!launchArmed){launchArmed=true;launchRequests=0;launchTicks=0;retryDelay=0;leftGround=false;}
+        jumpHeld=jump;
+        if(!player.isElytraFlying()){
+            wasGliding=false;launchLiftTicks=0;
+            if(!autoTakeoff){flightStatus="Jump, then press Jump again";return;}
+            if(player.isInWater()||player.isInLava()||player.isRiding()||player.capabilities.isFlying){
+                flightStatus="Cannot launch here";return;
+            }
+            if(!launchArmed){flightStatus="Press Jump to launch";return;}
+            if(++launchTicks>60){launchArmed=false;flightStatus="Launch not accepted";return;}
+            if(player.onGround){
+                if(leftGround){launchArmed=false;flightStatus="Launch rejected: release/repress Jump";return;}
+                if(launchTicks==1){
+                    if(!mc.world.getCollisionBoxes(player,player.getEntityBoundingBox().offset(0,1,0)).isEmpty()){
+                        launchArmed=false;flightStatus="Need headroom";return;
+                    }
+                    player.jump();
+                }
+                flightStatus="Taking off";return;
+            }
+            leftGround=true;
+            if(retryDelay>0)retryDelay--;
+            if(player.motionY<0 && retryDelay==0 && launchRequests<8){
+                PacketManager.send(new net.minecraft.network.play.client.CPacketEntityAction(player,
+                        net.minecraft.network.play.client.CPacketEntityAction.Action.START_FALL_FLYING),name);
+                launchRequests++;retryDelay=2;
+            }
+            flightStatus="Opening Elytra";return;
+        }
+        if(!wasGliding && launchArmed)launchLiftTicks=8;
+        wasGliding=true;
+        launchArmed=false;launchTicks=0;launchRequests=0;
+        flightStatus=mode==0?"Control":"Control + packet";
 
         int selectedMode = clamp(mode, 0, 2);
-        if (selectedMode == 0 || selectedMode == 2) applyControl(player);
+        applyControl(player);
+        if(launchLiftTicks>0){
+            launchLiftTicks--;
+            if(!mc.gameSettings.keyBindSneak.isKeyDown())player.motionY=Math.max(player.motionY,.15D);
+        }
         if (selectedMode == 1 || selectedMode == 2) applyPacketProfile(player);
+    }
+
+    @Override public void onInputUpdate(net.minecraftforge.client.event.InputUpdateEvent event){
+        // Consume held Space during launch so vanilla cannot repeatedly jump on
+        // landing. The launch state machine reads the physical key separately.
+        if(autoTakeoff && mc.player!=null && !mc.player.isElytraFlying() && !isAutomationBlockedByScreen()){
+            net.minecraft.item.ItemStack chest=mc.player.getItemStackFromSlot(net.minecraft.inventory.EntityEquipmentSlot.CHEST);
+            if(chest.getItem()==net.minecraft.init.Items.ELYTRA && net.minecraft.item.ItemElytra.isUsable(chest))
+                event.getMovementInput().jump=false;
+        }
     }
 
     private void applyControl(EntityPlayerSP player) {
@@ -64,7 +126,7 @@ public final class ElytraFly extends Module {
             forward /= length;
             strafe /= length;
         }
-        if (length > 1.0E-4D) {
+        if(length>1.0E-4D || brakeOnRelease) {
             double yaw = Math.toRadians(player.rotationYaw);
             double wishX = strafe * Math.cos(yaw) - forward * Math.sin(yaw);
             double wishZ = forward * Math.cos(yaw) + strafe * Math.sin(yaw);
@@ -85,8 +147,7 @@ public final class ElytraFly extends Module {
         }
 
         double vertical = clamp(verticalSpeed, 5, 200) / 100.0D;
-        if (player.movementInput.jump) player.motionY = Math.max(player.motionY, vertical);
-        else if (player.movementInput.sneak) player.motionY = Math.min(player.motionY, -vertical);
+        player.motionY = player.movementInput.jump ? vertical : player.movementInput.sneak ? -vertical : 0D;
     }
 
     private void applyPacketProfile(EntityPlayerSP player) {
