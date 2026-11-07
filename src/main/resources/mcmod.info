@@ -3,11 +3,11 @@
     "modid": "goldforge",
     "name": "Backspace",
     "description": "A clean yellow and black anarchy client for Minecraft 1.12.2.",
-    "version": "dev-4.0-beta",
+    "version": "dev-4.2.2-beta",
     "mcversion": "1.12.2",
     "authorList": ["Charkholl and Backspace Contributors"],
     "credits": "",
-    "logoFile": "",
+    "logoFile": "bckspc-logo.png",
     "screenshots": [],
     "dependencies": ["required-after:oneconfig"]
   }
