@@ -8,14 +8,14 @@
 
 <p align="center">
   A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
-  <strong>dev-4.2.5</strong>
+  <strong>dev-4.2.6</strong>
 </p>
 
 <p align="center">
   <img alt="Minecraft 1.12.2" src="https://img.shields.io/badge/Minecraft-1.12.2-5b8c3a?style=flat-square">
   <img alt="Forge 14.23.5.2859" src="https://img.shields.io/badge/Forge-14.23.5.2859-e36d28?style=flat-square">
   <img alt="Java 8" src="https://img.shields.io/badge/Java-8-f89820?style=flat-square">
-  <img alt="Release dev-4.2.5" src="https://img.shields.io/badge/release-dev--4.2.5-ffd800?style=flat-square">
+  <img alt="Release dev-4.2.6" src="https://img.shields.io/badge/release-dev--4.2.6-ffd800?style=flat-square">
 </p>
 
 ---
@@ -46,11 +46,12 @@ The module browser uses compact vanilla-style category columns and pixel toggles
 ## Installation
 
 1. Install Minecraft **1.12.2** with Forge **14.23.5.2859**.
-2. Download Backspace from the release and OneConfig for Forge 1.12.2 from [Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge):
+2. Download Backspace from the release, OneConfig for Forge 1.12.2 from [Modrinth](https://modrinth.com/mod/oneconfig/versions?g=1.12.2&l=forge), and [Baritone API Forge 1.2.19](https://github.com/cabaletta/baritone/releases/tag/v1.2.19) for TreeBurner pathfinding:
 
-   * `backspace-dev-4.2.5.jar`
+   * `backspace-dev-4.2.6.jar`
    * The OneConfig Forge 1.12.2 JAR
-3. Place both JAR files in your `.minecraft/mods` folder.
+   * `baritone-api-forge-1.2.19.jar` (use the API build, not standalone)
+3. Place the JAR files in your `.minecraft/mods` folder.
 4. Launch Minecraft using **Java 8**.
 5. Press <kbd>Right Shift</kbd> or type `/backspace` in-game to open the client.
 
@@ -81,7 +82,7 @@ Open a terminal in the project directory and run the command for your operating 
 After the build finishes, the JAR will be located at:
 
 ```text
-build/libs/backspace-dev-4.2.5.jar
+build/libs/backspace-dev-4.2.6.jar
 ```
 
 The project includes a Gradle wrapper pinned to version `4.10.3`, so there's no need to install Gradle separately.

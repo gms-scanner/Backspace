@@ -1,5 +1,11 @@
 # Changelog
 
+## dev-4.2.6 2026-11-09
+
+- Switched TreeBurner travel to Baritone API Forge custom goals; removed the requirement for its local bounded route search to succeed before choosing a tree.
+- Added Forge wood and Ore Dictionary log detection for modded trees, and visible warnings for missing Baritone or flint and steel.
+- Requires Baritone's api-forge build; the standalone build obfuscates the integration API.
+
 ## dev-4.2.5 2026-11-09
 
 - Reworked TreeBurner around grouped tree targets, existing-fire detection, bounded route search, visible ignition positions, and stuck recovery.

@@ -4,8 +4,10 @@ import dev.goldforge.inventory.InventoryManager;
 import dev.goldforge.module.Category;
 import dev.goldforge.module.Module;
 import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
@@ -14,6 +16,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraftforge.client.event.InputUpdateEvent;
+import net.minecraftforge.oredict.OreDictionary;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -33,7 +36,9 @@ public final class TreeBurner extends Module {
     private static final int MAX_LOGS_PER_TREE = 128;
     private final Map<BlockPos, Integer> visited = new HashMap<BlockPos, Integer>();
     private final Map<BlockPos, Integer> blocked = new HashMap<BlockPos, Integer>();
+    private final Map<IBlockState, Boolean> oreLogs = new HashMap<IBlockState, Boolean>();
     private Plan plan;
+    private boolean baritoneOwned, warnedMissingBaritone, warnedMissingTool;
     private int waypointIndex, ticks, nextScan, nextClick, stagnantTicks, failedClicks;
     private double lastWaypointDistance = Double.MAX_VALUE;
     private BlockPos pendingFire, pendingTree;
@@ -54,7 +59,9 @@ public final class TreeBurner extends Module {
     @Override protected void onWorldUnload() { reset(); }
 
     private void reset() {
+        cancelBaritone();
         visited.clear(); blocked.clear(); plan = null; pendingFire = pendingTree = null;
+        oreLogs.clear(); warnedMissingBaritone = warnedMissingTool = false;
         waypointIndex = ticks = nextScan = nextClick = stagnantTicks = failedClicks = 0;
         lastWaypointDistance = Double.MAX_VALUE; stopMoving();
     }
@@ -74,7 +81,11 @@ public final class TreeBurner extends Module {
                 if (++failedClicks >= 3) abandon(60);
             }
         }
-        if (findFlintAndSteel() < 0) { stopMoving(); return; }
+        if (findFlintAndSteel() < 0) {
+            if (!warnedMissingTool) { warn("Flint and steel is required."); warnedMissingTool = true; }
+            clearPlan(); return;
+        }
+        warnedMissingTool = false;
         if (plan != null && (treeBurning(plan.logs) || !isLog(plan.log))) {
             visited.put(plan.anchor, ticks + 20 * 60);
             clearPlan(); nextScan = ticks;
@@ -87,7 +98,7 @@ public final class TreeBurner extends Module {
             lastWaypointDistance = Double.MAX_VALUE;
         }
         if (plan == null) { stopMoving(); return; }
-        if (withinReach(plan.log) && (waypointIndex >= plan.path.size() - 1 || canSeeTreeNow())) {
+        if (withinReach(plan.log) && canSeeTreeNow()) {
             stopMoving();
             if (pendingFire == null && ticks >= nextClick) {
                 nextClick = ticks + clickDelay;
@@ -105,6 +116,7 @@ public final class TreeBurner extends Module {
     }
 
     private void clearPlan() {
+        cancelBaritone();
         plan = null; waypointIndex = 0; stagnantTicks = 0;
         lastWaypointDistance = Double.MAX_VALUE; stopMoving();
     }
@@ -177,61 +189,64 @@ public final class TreeBurner extends Module {
     }
 
     private void followRoute() {
-        if (waypointIndex >= plan.path.size()) { abandon(40); return; }
-        BlockPos waypoint = plan.path.get(waypointIndex);
-        if (!canStand(waypoint)) { abandon(40); return; }
-        double dx = waypoint.getX() + .5 - mc.player.posX;
-        double dz = waypoint.getZ() + .5 - mc.player.posZ;
-        if (Math.abs(dx) < .35 && Math.abs(dz) < .35
-                && Math.abs(waypoint.getY() - mc.player.posY) < 1.25) {
-            waypointIndex++;
-            stagnantTicks = 0; lastWaypointDistance = Double.MAX_VALUE;
-            if (waypointIndex >= plan.path.size()) { abandon(40); return; }
-            waypoint = plan.path.get(waypointIndex);
-            dx = waypoint.getX() + .5 - mc.player.posX;
-            dz = waypoint.getZ() + .5 - mc.player.posZ;
+        BlockPos goal = plan.path.get(0);
+        if (!baritoneOwned && !pathTo(goal)) {
+            if (!warnedMissingBaritone) { warn("Baritone is unavailable; install the Forge 1.12.2 Baritone mod."); warnedMissingBaritone = true; }
+            abandon(100); return;
         }
-        double distance = dx * dx + dz * dz;
-        if (distance < lastWaypointDistance - .002) {
-            stagnantTicks = 0; lastWaypointDistance = distance;
-        } else if (++stagnantTicks >= stuckTimeout) {
-            abandon(60); return;
+        double distance = mc.player.getDistanceSqToCenter(goal);
+        if (distance < lastWaypointDistance - .01) {
+            lastWaypointDistance = distance; stagnantTicks = 0;
+        } else if (++stagnantTicks >= Math.max(40, stuckTimeout * 4)) {
+            abandon(100);
         }
-        mc.player.rotationYaw = (float) (MathHelper.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F;
-        movingForward = true;
-        jumping = mc.player.onGround && (waypoint.getY() > MathHelper.floor(mc.player.posY)
-                || mc.player.collidedHorizontally);
     }
 
     @Override public void onInputUpdate(InputUpdateEvent event) {
-        if (event.getEntityPlayer() != mc.player || plan == null) return;
-        if (movingForward) event.getMovementInput().moveForward = 1.0F;
-        if (jumping) event.getMovementInput().jump = true;
-        movingForward = jumping = false;
+        // Baritone owns movement input while the target is active.
+    }
+
+    private boolean pathTo(BlockPos goal) {
+        try {
+            Class<?> api = Class.forName("baritone.api.BaritoneAPI");
+            Object provider = api.getMethod("getProvider").invoke(null);
+            Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
+            Object process = baritone.getClass().getMethod("getCustomGoalProcess").invoke(baritone);
+            Class<?> goalType = Class.forName("baritone.api.pathing.goals.Goal");
+            Class<?> goalBlock = Class.forName("baritone.api.pathing.goals.GoalBlock");
+            Object location = goalBlock.getConstructor(int.class, int.class, int.class)
+                    .newInstance(goal.getX(), goal.getY(), goal.getZ());
+            process.getClass().getMethod("setGoalAndPath", goalType).invoke(process, location);
+            baritoneOwned = true; warnedMissingBaritone = false; return true;
+        } catch (ReflectiveOperationException | LinkageError unavailable) { return false; }
+    }
+
+    private void cancelBaritone() {
+        if (!baritoneOwned) return;
+        try {
+            Class<?> api = Class.forName("baritone.api.BaritoneAPI");
+            Object provider = api.getMethod("getProvider").invoke(null);
+            Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
+            Object process = baritone.getClass().getMethod("getCustomGoalProcess").invoke(baritone);
+            process.getClass().getMethod("onLostControl").invoke(process);
+        } catch (ReflectiveOperationException | LinkageError ignored) {
+            try {
+                Class<?> api = Class.forName("baritone.api.BaritoneAPI");
+                Object provider = api.getMethod("getProvider").invoke(null);
+                Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
+                Object behavior = baritone.getClass().getMethod("getPathingBehavior").invoke(baritone);
+                behavior.getClass().getMethod("cancelEverything").invoke(behavior);
+            } catch (ReflectiveOperationException | LinkageError ignoredAgain) { }
+        }
+        baritoneOwned = false;
+    }
+
+    private void warn(String message) {
+        if (mc.player != null) mc.player.sendMessage(new net.minecraft.util.text.TextComponentString("[Backspace] TreeBurner: " + message));
     }
 
     private Plan findPlan() {
         BlockPos origin = new BlockPos(mc.player.posX, mc.player.posY, mc.player.posZ);
-        Map<BlockPos, BlockPos> parent = new HashMap<BlockPos, BlockPos>();
-        Map<BlockPos, Integer> distance = new HashMap<BlockPos, Integer>();
-        Queue<BlockPos> queue = new ArrayDeque<BlockPos>();
-        queue.add(origin); parent.put(origin, null); distance.put(origin, 0);
-        while (!queue.isEmpty() && parent.size() < MAX_PATH_NODES) {
-            BlockPos current = queue.remove();
-            int steps = distance.get(current);
-            if (steps >= searchRadius * 2) continue;
-            for (EnumFacing direction : HORIZONTAL) {
-                BlockPos horizontal = current.offset(direction);
-                for (int delta = -1; delta <= 1; delta++) {
-                    BlockPos next = horizontal.add(0, delta, 0);
-                    if (Math.abs(next.getY() - origin.getY()) > 5
-                            || Math.abs(next.getX() - origin.getX()) > searchRadius
-                            || Math.abs(next.getZ() - origin.getZ()) > searchRadius
-                            || parent.containsKey(next) || !canStand(next)) continue;
-                    parent.put(next, current); distance.put(next, steps + 1); queue.add(next);
-                }
-            }
-        }
         Set<BlockPos> seenLogs = new HashSet<BlockPos>();
         Plan best = null;
         int examined = 0, bestScore = Integer.MAX_VALUE;
@@ -244,16 +259,16 @@ public final class TreeBurner extends Module {
             if (tree.burning || visited.containsKey(tree.anchor) || blocked.containsKey(tree.anchor)) continue;
             for (BlockPos log : tree.logs) {
                 if (!hasExposedSide(log)) continue;
-                for (int x = -1; x <= 1; x++) for (int z = -1; z <= 1; z++) {
+                for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
                     if (x == 0 && z == 0) continue;
-                    BlockPos goal = new BlockPos(log.getX() + x, log.getY(), log.getZ() + z);
-                    Integer steps = distance.get(goal);
-                    if (steps == null || steps >= bestScore || !canSeeFrom(goal, log)) continue;
-                    List<BlockPos> path = new ArrayList<BlockPos>();
-                    for (BlockPos at = goal; at != null; at = parent.get(at)) path.add(at);
-                    Collections.reverse(path);
-                    best = new Plan(tree.anchor, log, tree.logs, path);
-                    bestScore = steps;
+                    for (int y = -2; y <= 1; y++) {
+                        BlockPos goal = new BlockPos(log.getX() + x, log.getY() + y, log.getZ() + z);
+                        if (!canStand(goal) || !canSeeFrom(goal, log)) continue;
+                        int score = (int) origin.distanceSq(goal);
+                        if (score >= bestScore) continue;
+                        best = new Plan(tree.anchor, log, tree.logs, Collections.singletonList(goal));
+                        bestScore = score;
+                    }
                 }
             }
         }
@@ -317,8 +332,17 @@ public final class TreeBurner extends Module {
     private boolean loaded(BlockPos pos) { return mc.world.isBlockLoaded(pos); }
     private boolean isLog(BlockPos pos) {
         if (!loaded(pos)) return false;
-        Block block = mc.world.getBlockState(pos).getBlock();
-        return block == Blocks.LOG || block == Blocks.LOG2;
+        IBlockState state = mc.world.getBlockState(pos);
+        Block block = state.getBlock();
+        if (block == Blocks.LOG || block == Blocks.LOG2 || block.isWood(mc.world, pos)) return true;
+        Boolean cached = oreLogs.get(state);
+        if (cached != null) return cached;
+        ItemStack stack = new ItemStack(block, 1, block.getMetaFromState(state));
+        boolean log = false;
+        if (!stack.isEmpty()) for (int id : OreDictionary.getOreIDs(stack))
+            if (id == OreDictionary.getOreID("logWood")) { log = true; break; }
+        oreLogs.put(state, log);
+        return log;
     }
     private boolean isFire(BlockPos pos) { return loaded(pos) && mc.world.getBlockState(pos).getBlock() == Blocks.FIRE; }
     private boolean canStand(BlockPos feet) {
