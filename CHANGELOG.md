@@ -1,5 +1,11 @@
 # Changelog
 
+## dev-4.2.5 2026-11-09
+
+- Reworked TreeBurner around grouped tree targets, existing-fire detection, bounded route search, visible ignition positions, and stuck recovery.
+- Added scan interval, click delay, and stuck timeout settings.
+- Wait for observed fire before marking a tree complete, and stop forcing the forward and jump key states.
+
 ## dev-4.2.4 2026-11-07
 
 - Kept the OneConfig GUI and fixed CI builds by fetching the pinned full OneConfig 1.12.2 Forge dependency before compilation.
