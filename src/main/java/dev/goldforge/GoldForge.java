@@ -20,7 +20,7 @@ import java.lang.reflect.Field;
 public final class GoldForge {
     public static final String MODID = "goldforge";
     public static final String NAME = "Backspace";
-    public static final String VERSION = "dev-4.2.6";
+    public static final String VERSION = "dev-4.3.0-rc1";
     public static final ModuleManager MODULES = new ModuleManager();
     private static final Field SPLASH_FIELD=findSplashField();
     private long lastClickGuiKey;
@@ -72,12 +72,15 @@ public final class GoldForge {
         if (oneConfigKey != null && oneConfigKey.getKeyBinds().contains(Keyboard.KEY_RSHIFT))
             oneConfigKey.clearKeys();
         Minecraft.getMinecraft().gameSettings.pauseOnLostFocus=false;
+        dev.goldforge.addon.AddonManager.load();
+        dev.goldforge.module.Category.freeze();
+        dev.goldforge.gui.GuiPreferences.ensureCategoryCapacity();
         ConfigManager.load();
         FriendManager.load();
         MinecraftForge.EVENT_BUS.register(MODULES);
         MinecraftForge.EVENT_BUS.register(this);
         net.minecraftforge.fml.common.FMLCommonHandler.instance().bus().register(new ConfigManager());
-        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable(){@Override public void run(){ConfigManager.save();}},"Backspace-config-save"));
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable(){@Override public void run(){ConfigManager.save();dev.goldforge.addon.AddonManager.shutdown();}},"Backspace-config-save"));
         ClientCommandHandler.instance.registerCommand(new GuiCommand());
         ClientCommandHandler.instance.registerCommand(new FriendCommand());
         ClientCommandHandler.instance.registerCommand(new PrinterCommand());

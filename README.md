@@ -8,7 +8,7 @@
 
 <p align="center">
   A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
-  <strong>dev-4.2.6</strong>
+  <strong>dev-4.3.0-rc1 source</strong>
 </p>
 
 <p align="center">
@@ -42,6 +42,7 @@ The module browser uses compact vanilla-style category columns and pixel toggles
 * **PearlTrace**: Predicts opponents' active ender pearl paths and likely collision points using observed motion, gravity, drag, and nearby world geometry.
 * **Beta 4.0 modules**: PingSpoof, WhisperSpam, BoatPhase, DIESP with a searchable item picker, and safe offhand crystal switching in AutoTotem.
 * **Developer tools**: Comes with a Gradle wrapper, GitHub Actions build workflow, changelog, release notes, and third-party notices.
+* **Addons**: Java 8 addon JARs can add modules, ClickGUI categories, Forge listeners, and client commands. Start with the [modding tutorial](docs/MODDING_TUTORIAL.md) or read the [addon API guide](docs/ADDONS.md).
 
 ## Installation
 

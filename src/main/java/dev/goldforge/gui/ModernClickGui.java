@@ -604,18 +604,16 @@ public final class ModernClickGui extends OneUIScreen {
     }
     private void popClip() { GL11.glDisable(GL11.GL_SCISSOR_TEST); }
     private String iconFor(Category category) {
-        switch (category) {
-            case COMBAT: return "crosshair";
-            case MOVEMENT: return "person-standing";
-            case PLAYER: return "user-round";
-            case RENDER: return "monitor";
-            case WORLD: return "box";
-            case EXPLOIT: return "zap";
-            case MISC: return "sparkles";
-            case CLIENT: return "sliders-horizontal";
-            case HUD: return "layout-dashboard";
-            default: return "circle";
-        }
+        if (category == Category.COMBAT) return "crosshair";
+        if (category == Category.MOVEMENT) return "person-standing";
+        if (category == Category.PLAYER) return "user-round";
+        if (category == Category.RENDER) return "monitor";
+        if (category == Category.WORLD) return "box";
+        if (category == Category.EXPLOIT) return "zap";
+        if (category == Category.MISC) return "sparkles";
+        if (category == Category.CLIENT) return "sliders-horizontal";
+        if (category == Category.HUD) return "layout-dashboard";
+        return "circle";
     }
     private void svg(long vg, String icon, float x, float y, float size, int color) {
         NanoVGHelper.INSTANCE.drawSvg(vg, "/assets/goldforge/icons/" + icon + ".svg", x, y, size, size, color, 1F, ModernClickGui.class);

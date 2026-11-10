@@ -1,5 +1,12 @@
 # Changelog
 
+## dev-4.3.0-rc1 2026-11-10
+
+- Added startup-loaded Java addon JARs with a ServiceLoader entry point.
+- Addons can register modules, category windows, Forge listeners, and client commands through AddonContext.
+- Added dynamic category registration across the existing ClickGUI views and config loading.
+- Added addon author documentation in docs/ADDONS.md.
+
 ## dev-4.2.6 2026-11-09
 
 - Switched TreeBurner travel to Baritone API Forge custom goals; removed the requirement for its local bounded route search to succeed before choosing a tree.

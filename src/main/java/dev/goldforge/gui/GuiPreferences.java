@@ -10,13 +10,24 @@ public final class GuiPreferences {
     public static int customAccent = -1;
     public static int theme = 0; // gold, red, mint, blue
     public static int pixelTransparency = 37; // 0 is opaque; 100 reveals the world
-    public static final int[] panelX = new int[Category.values().length];
-    public static final int[] panelY = new int[Category.values().length];
-    public static final boolean[] collapsed = new boolean[Category.values().length];
+    public static int[] panelX = new int[Category.values().length];
+    public static int[] panelY = new int[Category.values().length];
+    public static boolean[] collapsed = new boolean[Category.values().length];
     static { for (int i = 0; i < panelX.length; i++) { panelX[i] = -1; panelY[i] = -1; } }
     private GuiPreferences() {}
 
+    public static void ensureCategoryCapacity() {
+        int size = Category.values().length;
+        if (panelX.length >= size) return;
+        int old = panelX.length;
+        panelX = java.util.Arrays.copyOf(panelX, size);
+        panelY = java.util.Arrays.copyOf(panelY, size);
+        collapsed = java.util.Arrays.copyOf(collapsed, size);
+        for (int i = old; i < size; i++) { panelX[i] = -1; panelY[i] = -1; }
+    }
+
     public static void load(Properties values) {
+        ensureCategoryCapacity();
         menuShader = clamp(read(values, "gui.menuShader", 0), 0, 10);
         customAccent = clamp(read(values, "gui.customAccent", -1), -1, 0xFFFFFF);
         layout = clamp(read(values, "gui.layout", layout), 0, 1);
@@ -33,6 +44,7 @@ public final class GuiPreferences {
         }
     }
     public static void save(Properties values) {
+        ensureCategoryCapacity();
         values.setProperty("gui.menuShader", Integer.toString(clamp(menuShader, 0, 10)));
         values.setProperty("gui.customAccent", Integer.toString(customAccent));
         values.setProperty("gui.layout", Integer.toString(clamp(layout, 0, 1)));

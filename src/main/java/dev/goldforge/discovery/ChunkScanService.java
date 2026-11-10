@@ -59,6 +59,7 @@ public final class ChunkScanService {
     private long scannedChunks,scannedBlocks,lastNanos;
     public int blockBudget=4096,queueLimit=512;
     public void addListener(Listener listener){if(!listeners.contains(listener))listeners.add(listener);}
+    public void removeListener(Listener listener){listeners.remove(listener);}
     public void clear(){queue.clear();queued.clear();active=null;dimension=Integer.MIN_VALUE;seeded=false;}
     public int pending(){return queue.size()+(active==null?0:1);}
     public long scannedChunks(){return scannedChunks;}

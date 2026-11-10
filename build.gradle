@@ -5,7 +5,7 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 
-version = 'dev-4.2.6'
+version = 'dev-4.3.0-rc1'
 group = 'dev.goldforge'
 archivesBaseName = 'backspace'
 
@@ -54,4 +54,11 @@ task backgroundHarness(type: JavaExec) {
     dependsOn classes
     classpath = sourceSets.main.runtimeClasspath
     main = 'dev.goldforge.diagnostics.BackgroundHarness'
+}
+
+task addonHarness(type: JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'dev.goldforge.diagnostics.AddonHarness'
+    args 'examples/hello-addon/build/libs/backspace-hello-addon-1.0.0.jar'
 }

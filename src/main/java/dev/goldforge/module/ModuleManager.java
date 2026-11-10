@@ -30,7 +30,7 @@ import java.util.*;
 public final class ModuleManager {
     private static final Logger LOGGER=LogManager.getLogger("Backspace/Modules");
     private final List<Module> modules = new ArrayList<Module>();
-    private final Map<Category,List<Module>> byCategory = new EnumMap<Category,List<Module>>(Category.class);
+    private final Map<Category,List<Module>> byCategory = new LinkedHashMap<Category,List<Module>>();
     private final Map<String,Long> timings=new LinkedHashMap<String,Long>();
     private final Map<String,TimingWindow> timingWindows=new LinkedHashMap<String,TimingWindow>();
     private final Set<RenderPlayer> capeLayerRenderers=Collections.newSetFromMap(new WeakHashMap<RenderPlayer,Boolean>());
@@ -52,11 +52,30 @@ public final class ModuleManager {
         modules.add(new ShulkerPreview());
         for(Category category:Category.values())byCategory.put(category,new ArrayList<Module>());
         for(Module module:modules)byCategory.get(module.category).add(module);
-        for(Category category:Category.values())byCategory.put(category,Collections.unmodifiableList(byCategory.get(category)));
         for(Module module:modules)if(module instanceof ChunkScanService.Listener)chunkScanner.addListener((ChunkScanService.Listener)module);
     }
     public List<Module> all() { return Collections.unmodifiableList(modules); }
-    public List<Module> in(Category category) { List<Module> result=byCategory.get(category);return result==null?Collections.<Module>emptyList():result; }
+    public List<Module> in(Category category) { List<Module> result=byCategory.get(category);return result==null?Collections.<Module>emptyList():Collections.unmodifiableList(result); }
+    public void register(Module module) {
+        if(module==null||module.category==null||module.name==null||module.name.trim().isEmpty())
+            throw new IllegalArgumentException("Addon module needs a name and category");
+        if(get(module.name)!=null)throw new IllegalArgumentException("Duplicate module: "+module.name);
+        if(!Arrays.asList(Category.values()).contains(module.category))
+            throw new IllegalArgumentException("Unregistered category: "+module.category);
+        modules.add(module);
+        List<Module> group=byCategory.get(module.category);
+        if(group==null){group=new ArrayList<Module>();byCategory.put(module.category,group);}
+        group.add(module);
+        if(module instanceof ChunkScanService.Listener)chunkScanner.addListener((ChunkScanService.Listener)module);
+    }
+    public void unregister(Module module) {
+        if(module==null)return;
+        module.setEnabled(false);
+        modules.remove(module);
+        List<Module> group=byCategory.get(module.category);
+        if(group!=null)group.remove(module);
+        if(module instanceof ChunkScanService.Listener)chunkScanner.removeListener((ChunkScanService.Listener)module);
+    }
     public Module get(String name) { for (Module m : modules) if (m.name.equalsIgnoreCase(name)) return m; return null; }
     public ChunkScanService chunkScanner(){return chunkScanner;}
     public void onKey(int key) { for (Module m : modules) if (key != 0 && key == m.key) safe(m,"key-toggle",new Runnable(){@Override public void run(){m.toggle();}}); }

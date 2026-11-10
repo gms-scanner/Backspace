@@ -81,11 +81,6 @@ public final class TreeBurner extends Module {
                 if (++failedClicks >= 3) abandon(60);
             }
         }
-        if (findFlintAndSteel() < 0) {
-            if (!warnedMissingTool) { warn("Flint and steel is required."); warnedMissingTool = true; }
-            clearPlan(); return;
-        }
-        warnedMissingTool = false;
         if (plan != null && (treeBurning(plan.logs) || !isLog(plan.log))) {
             visited.put(plan.anchor, ticks + 20 * 60);
             clearPlan(); nextScan = ticks;
@@ -98,8 +93,15 @@ public final class TreeBurner extends Module {
             lastWaypointDistance = Double.MAX_VALUE;
         }
         if (plan == null) { stopMoving(); return; }
-        if (withinReach(plan.log) && canSeeTreeNow()) {
+        if (!hasIgniter() && !warnedMissingTool) {
+            warn("Need flint and steel in inventory or offhand to ignite; continuing toward tree.");
+            warnedMissingTool = true;
+        }
+        if (hasIgniter()) warnedMissingTool = false;
+        if (canSeeTreeNow()) {
+            cancelBaritone();
             stopMoving();
+            if (!hasIgniter()) return;
             if (pendingFire == null && ticks >= nextClick) {
                 nextClick = ticks + clickDelay;
                 if (!tryIgnite()) {
@@ -134,12 +136,9 @@ public final class TreeBurner extends Module {
         Vec3d eye = mc.player.getPositionEyes(1.0F);
         double reachSq = Math.pow(mc.playerController.getBlockReachDistance(), 2);
         for (BlockPos log : plan.logs) for (EnumFacing face : EnumFacing.values()) {
-            if (!loaded(log.offset(face)) || !mc.world.isAirBlock(log.offset(face))) continue;
+            if (!isLog(log) || !loaded(log.offset(face)) || !mc.world.isAirBlock(log.offset(face))) continue;
             Vec3d point = facePoint(log, face);
-            if (eye.squareDistanceTo(point) > reachSq) continue;
-            RayTraceResult hit = mc.world.rayTraceBlocks(eye, point, false, true, false);
-            if (hit != null && hit.typeOfHit == RayTraceResult.Type.BLOCK
-                    && log.equals(hit.getBlockPos()) && hit.sideHit == face) return true;
+            if (eye.squareDistanceTo(point) <= reachSq) return true;
         }
         return false;
     }
@@ -147,7 +146,8 @@ public final class TreeBurner extends Module {
     private boolean tryIgnite() {
         Vec3d eye = mc.player.getPositionEyes(1.0F);
         double reachSq = Math.pow(mc.playerController.getBlockReachDistance(), 2);
-        RayTraceResult bestHit = null;
+        EnumFacing bestFace = null;
+        Vec3d bestPoint = null;
         BlockPos bestLog = null, bestFire = null;
         double bestDistance = Double.MAX_VALUE;
         for (BlockPos log : plan.logs) {
@@ -157,27 +157,34 @@ public final class TreeBurner extends Module {
                 if (!loaded(fire) || !mc.world.isAirBlock(fire)) continue;
                 Vec3d point = facePoint(log, face);
                 double distance = eye.squareDistanceTo(point);
-                if (distance > reachSq || distance >= bestDistance) continue;
+                if (distance > reachSq) continue;
                 RayTraceResult hit = mc.world.rayTraceBlocks(eye, point, false, true, false);
-                if (hit != null && hit.typeOfHit == RayTraceResult.Type.BLOCK
-                        && log.equals(hit.getBlockPos()) && hit.sideHit == face) {
-                    bestHit = hit; bestLog = log; bestFire = fire; bestDistance = distance;
-                }
+                boolean visible = hit != null && hit.typeOfHit == RayTraceResult.Type.BLOCK
+                        && log.equals(hit.getBlockPos()) && hit.sideHit == face;
+                double score = distance + (visible ? 0 : reachSq * 2);
+                if (score >= bestDistance) continue;
+                bestLog = log; bestFace = face; bestFire = fire;
+                bestPoint = visible ? hit.hitVec : point; bestDistance = score;
             }
         }
-        if (bestHit == null) return false;
-        Vec3d point = bestHit.hitVec;
+        if (bestLog == null) return false;
+        Vec3d point = bestPoint;
         double dx = point.x - mc.player.posX, dy = point.y - mc.player.posY - mc.player.getEyeHeight();
         double dz = point.z - mc.player.posZ;
         mc.player.rotationYaw = (float) (MathHelper.atan2(dz, dx) * 180.0D / Math.PI) - 90.0F;
         mc.player.rotationPitch = (float) (-MathHelper.atan2(dy, Math.sqrt(dx * dx + dz * dz)) * 180.0D / Math.PI);
-        int slot = findFlintAndSteel();
-        if (slot < 0) return false;
-        mc.player.inventory.currentItem = slot;
+        mc.player.rotationYawHead = mc.player.rotationYaw;
+        mc.player.renderYawOffset = mc.player.rotationYaw;
+        EnumHand hand = mc.player.getHeldItemOffhand().getItem() == Items.FLINT_AND_STEEL
+                ? EnumHand.OFF_HAND : EnumHand.MAIN_HAND;
+        int slot = hand == EnumHand.MAIN_HAND ? findFlintAndSteel() : -1;
+        if (hand == EnumHand.MAIN_HAND && slot < 0) return false;
+        if (slot >= 0) mc.player.inventory.currentItem = slot;
+        mc.playerController.updateController();
         EnumActionResult result = mc.playerController.processRightClickBlock(
-                mc.player, mc.world, bestLog, bestHit.sideHit, bestHit.hitVec, EnumHand.MAIN_HAND);
+                mc.player, mc.world, bestLog, bestFace, bestPoint, hand);
         if (result != EnumActionResult.SUCCESS) return false;
-        mc.player.swingArm(EnumHand.MAIN_HAND);
+        mc.player.swingArm(hand);
         pendingFire = bestFire; pendingTree = plan.anchor; pendingUntil = ticks + 12;
         return true;
     }
@@ -210,13 +217,13 @@ public final class TreeBurner extends Module {
         try {
             Class<?> api = Class.forName("baritone.api.BaritoneAPI");
             Object provider = api.getMethod("getProvider").invoke(null);
-            Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
-            Object process = baritone.getClass().getMethod("getCustomGoalProcess").invoke(baritone);
+            Object baritone = Class.forName("baritone.api.IBaritoneProvider").getMethod("getPrimaryBaritone").invoke(provider);
+            Object process = Class.forName("baritone.api.IBaritone").getMethod("getCustomGoalProcess").invoke(baritone);
             Class<?> goalType = Class.forName("baritone.api.pathing.goals.Goal");
             Class<?> goalBlock = Class.forName("baritone.api.pathing.goals.GoalBlock");
             Object location = goalBlock.getConstructor(int.class, int.class, int.class)
                     .newInstance(goal.getX(), goal.getY(), goal.getZ());
-            process.getClass().getMethod("setGoalAndPath", goalType).invoke(process, location);
+            Class.forName("baritone.api.process.ICustomGoalProcess").getMethod("setGoalAndPath", goalType).invoke(process, location);
             baritoneOwned = true; warnedMissingBaritone = false; return true;
         } catch (ReflectiveOperationException | LinkageError unavailable) { return false; }
     }
@@ -226,16 +233,16 @@ public final class TreeBurner extends Module {
         try {
             Class<?> api = Class.forName("baritone.api.BaritoneAPI");
             Object provider = api.getMethod("getProvider").invoke(null);
-            Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
-            Object process = baritone.getClass().getMethod("getCustomGoalProcess").invoke(baritone);
-            process.getClass().getMethod("onLostControl").invoke(process);
+            Object baritone = Class.forName("baritone.api.IBaritoneProvider").getMethod("getPrimaryBaritone").invoke(provider);
+            Object process = Class.forName("baritone.api.IBaritone").getMethod("getCustomGoalProcess").invoke(baritone);
+            Class.forName("baritone.api.process.IBaritoneProcess").getMethod("onLostControl").invoke(process);
         } catch (ReflectiveOperationException | LinkageError ignored) {
             try {
                 Class<?> api = Class.forName("baritone.api.BaritoneAPI");
                 Object provider = api.getMethod("getProvider").invoke(null);
-                Object baritone = provider.getClass().getMethod("getPrimaryBaritone").invoke(provider);
-                Object behavior = baritone.getClass().getMethod("getPathingBehavior").invoke(baritone);
-                behavior.getClass().getMethod("cancelEverything").invoke(behavior);
+                Object baritone = Class.forName("baritone.api.IBaritoneProvider").getMethod("getPrimaryBaritone").invoke(provider);
+                Object behavior = Class.forName("baritone.api.IBaritone").getMethod("getPathingBehavior").invoke(baritone);
+                Class.forName("baritone.api.behavior.IPathingBehavior").getMethod("cancelEverything").invoke(behavior);
             } catch (ReflectiveOperationException | LinkageError ignoredAgain) { }
         }
         baritoneOwned = false;
@@ -249,11 +256,12 @@ public final class TreeBurner extends Module {
         BlockPos origin = new BlockPos(mc.player.posX, mc.player.posY, mc.player.posZ);
         Set<BlockPos> seenLogs = new HashSet<BlockPos>();
         Plan best = null;
-        int examined = 0, bestScore = Integer.MAX_VALUE;
+        int examined = 0, foundLogs = 0, candidateGoals = 0, bestScore = Integer.MAX_VALUE;
         for (BlockPos cursor : BlockPos.getAllInBoxMutable(
                 origin.add(-searchRadius, -4, -searchRadius),
                 origin.add(searchRadius, 6, searchRadius))) {
             if (!loaded(cursor) || !isLog(cursor) || seenLogs.contains(cursor)) continue;
+            foundLogs++;
             Tree tree = collectTree(cursor.toImmutable(), seenLogs);
             if (++examined > MAX_TREES_PER_SCAN) break;
             if (tree.burning || visited.containsKey(tree.anchor) || blocked.containsKey(tree.anchor)) continue;
@@ -261,9 +269,10 @@ public final class TreeBurner extends Module {
                 if (!hasExposedSide(log)) continue;
                 for (int x = -2; x <= 2; x++) for (int z = -2; z <= 2; z++) {
                     if (x == 0 && z == 0) continue;
-                    for (int y = -2; y <= 1; y++) {
+                    for (int y = -3; y <= 2; y++) {
                         BlockPos goal = new BlockPos(log.getX() + x, log.getY() + y, log.getZ() + z);
-                        if (!canStand(goal) || !canSeeFrom(goal, log)) continue;
+                        if (!canStand(goal)) continue;
+                        candidateGoals++;
                         int score = (int) origin.distanceSq(goal);
                         if (score >= bestScore) continue;
                         best = new Plan(tree.anchor, log, tree.logs, Collections.singletonList(goal));
@@ -272,6 +281,8 @@ public final class TreeBurner extends Module {
                 }
             }
         }
+        if (best == null && ticks % 200 < scanInterval)
+            warn("Scan saw " + foundLogs + " logs, " + examined + " trees, " + candidateGoals + " approach spots.");
         return best;
     }
 
@@ -347,8 +358,8 @@ public final class TreeBurner extends Module {
     private boolean isFire(BlockPos pos) { return loaded(pos) && mc.world.getBlockState(pos).getBlock() == Blocks.FIRE; }
     private boolean canStand(BlockPos feet) {
         if (!loaded(feet) || !loaded(feet.up()) || !loaded(feet.down())) return false;
-        if (mc.world.getBlockState(feet).getCollisionBoundingBox(mc.world, feet) != null) return false;
-        if (mc.world.getBlockState(feet.up()).getCollisionBoundingBox(mc.world, feet.up()) != null) return false;
+        if (!mc.world.getBlockState(feet).getBlock().isPassable(mc.world, feet)) return false;
+        if (!mc.world.getBlockState(feet.up()).getBlock().isPassable(mc.world, feet.up())) return false;
         BlockPos floor = feet.down();
         return mc.world.getBlockState(floor).isSideSolid(mc.world, floor, EnumFacing.UP);
     }
@@ -356,6 +367,10 @@ public final class TreeBurner extends Module {
         int slot = InventoryManager.findItem(mc, Items.FLINT_AND_STEEL);
         if (slot < 0) return -1;
         return slot < 9 ? slot : InventoryManager.moveToHotbar(mc, slot, 0) ? 0 : -1;
+    }
+    private boolean hasIgniter() {
+        return mc.player.getHeldItemOffhand().getItem() == Items.FLINT_AND_STEEL
+                || InventoryManager.findItem(mc, Items.FLINT_AND_STEEL) >= 0;
     }
     private void stopMoving() { movingForward = jumping = false; }
 

@@ -21,7 +21,8 @@ import org.lwjgl.opengl.GL11;
 import java.io.IOException;
 import java.nio.IntBuffer;
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +34,7 @@ public final class PixelClickGui extends GuiScreen implements BlurScreen {
     private UiFont smallFont;
     private final ThemeWindow themeWindow = new ThemeWindow();
     private final UpdateWindow updateWindow = new UpdateWindow();
-    private final EnumMap<Category, Integer> scroll = new EnumMap<Category, Integer>(Category.class);
+    private final Map<Category, Integer> scroll = new LinkedHashMap<Category, Integer>();
     private final Set<Module> expanded = Collections.newSetFromMap(new IdentityHashMap<Module, Boolean>());
     private final IdentityHashMap<Module, Float> animated = new IdentityHashMap<Module, Float>();
     private final IdentityHashMap<Object, Marquee> nameMarquees = new IdentityHashMap<Object, Marquee>();
