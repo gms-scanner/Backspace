@@ -46,11 +46,11 @@ public final class BackspaceUpdater {
             try {
                 JsonArray releases = new JsonParser().parse(read(API)).getAsJsonArray();
                 JsonObject selected = null;
-                int best = version(GoldForge.VERSION);
+                long best = version(GoldForge.VERSION);
                 for (JsonElement element : releases) {
                     JsonObject release = element.getAsJsonObject();
                     if (release.get("draft").getAsBoolean()) continue;
-                    int candidate = version(release.get("tag_name").getAsString());
+                    long candidate = version(release.get("tag_name").getAsString());
                     if (candidate > best && asset(release) != null) { selected = release; best = candidate; }
                 }
                 if (selected == null) { set(Phase.CURRENT,"Backspace is up to date",GoldForge.VERSION,1F); return; }
@@ -59,7 +59,7 @@ public final class BackspaceUpdater {
                 set(Phase.DOWNLOADING,"Updating now: "+tag,tag,0F);
                 CodeSource source = GoldForge.class.getProtectionDomain().getCodeSource();
                 if (source == null) throw new IllegalStateException("Cannot locate installed JAR");
-                Path current = Paths.get(source.getLocation().toURI());
+                Path current = installedPath(source.getLocation());
                 if (!Files.isRegularFile(current) || !current.getFileName().toString().endsWith(".jar"))
                     throw new IllegalStateException("Updates require a packaged JAR");
                 Path staged = current.resolveSibling("backspace-update-staged.jar.download");
@@ -83,13 +83,28 @@ public final class BackspaceUpdater {
         worker.start();
     }
 
-    private static int version(String tag) {
-        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^dev-(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:-(beta|dev)(\\d*)?)?$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(tag);
+    static Path installedPath(URL location) throws Exception {
+        // LaunchWrapper can supply jar:file:/.../mod.jar!/ rather than a file URL.
+        // Paths.get(jar URI) requires a mounted ZIP filesystem and fails here.
+        while ("jar".equalsIgnoreCase(location.getProtocol())) {
+            location = ((java.net.JarURLConnection)location.openConnection()).getJarFileURL();
+        }
+        if (!"file".equalsIgnoreCase(location.getProtocol()))
+            throw new java.io.IOException("Unsupported installed mod location: " + location.getProtocol());
+        return Paths.get(location.toURI()).toAbsolutePath().normalize();
+    }
+
+    static long version(String tag) {
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^dev-(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:-(beta|dev|rc)(\\d*)?)?$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(tag);
         if (!match.matches()) return -1;
-        int major = Integer.parseInt(match.group(1)), minor = Integer.parseInt(match.group(2));
-        int patch = match.group(3) == null ? 0 : Integer.parseInt(match.group(3));
-        int stage = match.group(4) == null ? 9 : "beta".equalsIgnoreCase(match.group(4)) ? 5 : 1;
-        return major * 1000000 + minor * 10000 + patch * 100 + stage;
+        try {
+            long major = Long.parseLong(match.group(1)), minor = Long.parseLong(match.group(2));
+            long patch = match.group(3) == null ? 0 : Long.parseLong(match.group(3));
+            long sequence = match.group(5) == null || match.group(5).isEmpty() ? 0 : Long.parseLong(match.group(5));
+            if(major>999||minor>999||patch>999||sequence>999)return -1;
+            long stage = match.group(4) == null ? 3 : "rc".equalsIgnoreCase(match.group(4)) ? 2 : "beta".equalsIgnoreCase(match.group(4)) ? 1 : 0;
+            return (((major * 1000 + minor) * 1000 + patch) * 4 + stage) * 1000 + sequence;
+        } catch(NumberFormatException invalid) { return -1; }
     }
 
     private static String asset(JsonObject release) {

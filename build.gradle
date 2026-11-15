@@ -5,7 +5,13 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'eclipse'
 
-version = 'dev-4.3.0-rc1'
+task updaterHarness(type: JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'dev.goldforge.UpdaterHarness'
+}
+
+version = 'dev-4.3.0-rc3'
 group = 'dev.goldforge'
 archivesBaseName = 'backspace'
 

@@ -8,7 +8,7 @@
 
 <p align="center">
   A custom Minecraft Forge 1.12.2 client focused on clean visuals, useful features, and a modern interface.<br>
-  <strong>dev-4.3.0-rc1 source</strong>
+  <strong>dev-4.3.0-rc3 source</strong>
 </p>
 
 <p align="center">
